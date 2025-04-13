@@ -1,16 +1,27 @@
-// pages/index.js or Home.js
+// pages/workspace.js (or similar file path)
 'use client';
 
-import { useState } from 'react';
+import { useFileContext } from '@/context/FileContext';
+import {useEffect, useState} from 'react';
 import Graph from '../../components/Graph';
 import Summary from '../../components/Summary';
 import Overlay from '../../components/Overlay';
-import '@/app/globals.css'; // Tailwind first
-import 'vis-network/styles/vis-network.css'; // vis styles override Tailwind
+import '@/app/globals.css';
+import 'vis-network/styles/vis-network.css';
 
-const Home = () => {
+const Workspace = () => {
+    const { pdfFiles } = useFileContext();
+
+    // For demonstration, you might log the files; in production,
+    // pass these files to your fetchNetworkData function as needed.
+    useEffect(() => {
+        if (pdfFiles.length > 0) {
+            console.log('Files available in workspace:', pdfFiles);
+            // Example: fetchNetworkData(pdfFiles);
+        }
+    }, [pdfFiles]);
+
     const [isOverlayVisible, setIsOverlayVisible] = useState(false);
-
     const toggleOverlay = () => {
         setIsOverlayVisible((prev) => !prev);
     };
@@ -59,4 +70,4 @@ const Home = () => {
     );
 };
 
-export default Home;
+export default Workspace;
