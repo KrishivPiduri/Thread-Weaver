@@ -1,45 +1,62 @@
-import React from "react";
-import Graph from "react-vis-network-graph";
-import "vis-network/styles/vis-network.css"; // Ensure this line exists!
+// pages/index.js or Home.js
+'use client';
 
-export default function App() {
-    const graph = {
-        nodes: [
-            { id: 1, label: "Node 1", title: "Tooltip 1" },
-            { id: 2, label: "Node 2", title: "Tooltip 2" }
-        ],
-        edges: [{ from: 1, to: 2 }]
+import { useState } from 'react';
+import Graph from '../../components/Graph';
+import Summary from '../../components/Summary';
+import Overlay from '../../components/Overlay';
+import '@/app/globals.css'; // Tailwind first
+import 'vis-network/styles/vis-network.css'; // vis styles override Tailwind
+
+const Home = () => {
+    const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+
+    const toggleOverlay = () => {
+        setIsOverlayVisible((prev) => !prev);
     };
 
-    const options = {
-        layout: {
-            hierarchical: false
-        },
-        nodes: {
-            shape: "dot",
-            size: 25,
-            font: {
-                color: "#000000",
-                size: 20,
-                face: "arial"
-            }
-        },
-        edges: {
-            color: "#0077aa"
-        },
-        height: "500px"
+    const nodesData = [
+        { id: 1, label: 'Note 1' },
+        { id: 2, label: 'Note 2' },
+        { id: 3, label: 'Note 3' },
+        { id: 4, label: 'Note 4' },
+    ];
+
+    const edgesData = [
+        { from: 1, to: 2, label: 'Link 1-2' },
+        { from: 1, to: 3, label: 'Link 1-3' },
+        { from: 2, to: 4, label: 'Link 2-4' },
+    ];
+
+    const nodeSummaries = {
+        1: 'Summary for Note 1: This is a detailed description of Note 1.',
+        2: 'Summary for Note 2: This is a detailed description of Note 2.',
+        3: 'Summary for Note 3: This is a detailed description of Note 3.',
+        4: 'Summary for Note 4: This is a detailed description of Note 4.',
     };
 
     return (
-        <div style={{ height: "100vh", background: "#f0f0f0" }}>
-            <Graph
-                graph={graph}
-                options={options}
-                events={{}}
-                getNetwork={(network) => {
-                    // Optional access to vis.js API
-                }}
-            />
+        <div className="relative h-screen w-screen overflow-hidden flex">
+            {/* Graph component */}
+            <Graph nodesData={nodesData} edgesData={edgesData} />
+
+            {/* Button to open the overlay */}
+            <button
+                onClick={toggleOverlay}
+                className="absolute top-4 left-4 bg-transparent text-gray-500 w-16 h-16 rounded hover:bg-gray-200 flex items-center justify-center text-5xl font-thin"
+            >
+                {isOverlayVisible ? '‹‹' : '››'}
+            </button>
+
+            {/* Overlay */}
+            {isOverlayVisible && <Overlay />}
+
+            {/* Summary Section */}
+            <div className="flex-1 bg-gray-100 p-4 overflow-y-auto">
+                <Summary nodesData={nodesData} nodeSummaries={nodeSummaries} />
+            </div>
         </div>
     );
-}
+};
+
+export default Home;

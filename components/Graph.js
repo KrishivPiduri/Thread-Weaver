@@ -5,54 +5,77 @@ import { DataSet } from 'vis-network/standalone/esm/vis-network';
 
 const Graph = ({ nodesData, edgesData }) => {
     const networkContainerRef = useRef(null);
+    const networkRef = useRef(null);
+    const nodesRef = useRef(null);
+    const edgesRef = useRef(null);
 
     useEffect(() => {
-        // Ensure nodesData contains label for each node
-        const nodes = new DataSet(
-            nodesData.map(node => ({
-                ...node,
-                label: node.label || node.id, // Ensure each node has a label
-            }))
-        );
-
-        const edges = new DataSet(edgesData);
+        nodesRef.current = new DataSet();
+        edgesRef.current = new DataSet();
 
         const data = {
-            nodes: nodes,
-            edges: edges,
+            nodes: nodesRef.current,
+            edges: edgesRef.current,
         };
 
         const options = {
             nodes: {
                 shape: 'dot',
                 size: 16,
-                font: {
-                    size: 14,
-                    color: '#000000', // Set label color explicitly to black (or any color)
-                },
+                font: { size: 14, color: '#000000' },
                 borderWidth: 2,
                 labelHighlightBold: true,
-                title: 'node', // Tooltip on hover to show node's label
+                title: 'node',
             },
             edges: {
-                font: {
-                    size: 12,
-                    color: '#000000',
-                }, // Customize edge labels
-                arrows: { to: { enabled: true, scaleFactor: 0.5 } }, // Optional: add arrow on edges
+                font: { size: 12, color: '#000000' },
+                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
             },
             physics: {
                 enabled: true,
+                stabilization: {
+                    iterations: 200,
+                    updateInterval: 25,
+                    fit: true,
+                },
             },
-            interaction: {
-                tooltipDelay: 200, // Delay before showing the tooltip
-            },
+            interaction: { tooltipDelay: 200 },
         };
 
-        new Network(networkContainerRef.current, data, options);
+        networkRef.current = new Network(networkContainerRef.current, data, options);
+
+        // Dispatch a custom event when a node is selected
+        networkRef.current.on('selectNode', (event) => {
+            const selectedNodeId = event.nodes[0];
+            window.dispatchEvent(new CustomEvent('nodeSelected', { detail: selectedNodeId }));
+        });
+
+        // Optional: disable physics after stabilization so the layout doesn't change
+        networkRef.current.once('stabilizationIterationsDone', () => {
+            networkRef.current.setOptions({ physics: false });
+        });
+
+        return () => {
+            networkRef.current?.destroy();
+        };
     }, [nodesData, edgesData]);
 
-    return <div ref={networkContainerRef} className="relative h-full w-full"></div>;
+    // Update the graph's data when nodesData/edgesData change
+    useEffect(() => {
+        if (nodesRef.current && edgesRef.current) {
+            nodesRef.current.clear();
+            edgesRef.current.clear();
+            nodesRef.current.add(
+                nodesData.map((node) => ({
+                    ...node,
+                    label: node.label || node.id,
+                }))
+            );
+            edgesRef.current.add(edgesData);
+        }
+    }, [nodesData, edgesData]);
+
+    return <div ref={networkContainerRef} className="relative h-full w-full flex-4"></div>;
 };
 
 export default Graph;
