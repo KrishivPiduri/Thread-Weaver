@@ -4,6 +4,9 @@
 import { useState } from 'react';
 import Graph from '../components/Graph';
 import Overlay from "../components/Overlay";
+import '@/app/globals.css'        // Tailwind first
+import 'vis-network/styles/vis-network.css' // vis styles override Tailwind
+
 
 const Home = () => {
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
