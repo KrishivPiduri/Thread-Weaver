@@ -6,21 +6,11 @@ import { redirect } from 'next/navigation'
 function HomePage() {
     const [topic, setTopic] = useState('');
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (topic.trim()) {
-            // Redirect to /workspace with the topic as a URL parameter
-            redirect(`/workspace?topic=${encodeURIComponent(topic)}`);
-        } else {
-            alert('Please enter a topic!');
-        }
-    };
-
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
                 <h1 className="text-2xl font-bold text-center mb-6">AutoMind - Topic Mind Map Generator</h1>
-                <form onSubmit={handleSubmit}>
+                <form action='/workspace' method='get'>
                     <div className="mb-4">
                         <label htmlFor="topic" className="block text-sm font-medium text-gray-700">Enter a Topic</label>
                         <input
@@ -28,6 +18,7 @@ function HomePage() {
                             id="topic"
                             value={topic}
                             onChange={(e) => setTopic(e.target.value)}
+                            name='topic'
                             className="w-full p-3 mt-2 border border-gray-300 rounded-md"
                             placeholder="E.g. Feminism, Industrial Revolution, Existentialism"
                         />

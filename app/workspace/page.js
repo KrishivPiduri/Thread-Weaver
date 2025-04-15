@@ -23,6 +23,9 @@ const Workspace = () => {
     };
 
     useEffect(() => {
+        const baseUrl = 'https://automindbucket.hackyourgrade.com/';
+        const sanitizeKey = (str) => str.replace(/\s+/g, '').toLowerCase();
+
         const startJob = async () => {
             try {
                 const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
@@ -44,7 +47,6 @@ const Workspace = () => {
         };
 
         const pollForResult = async (filename) => {
-            const baseUrl = 'http://automindtopics.s3-website-us-east-1.amazonaws.com/';
             const fileUrl = `${baseUrl}${filename}`;
             const timeout = 60000; // 1 minute
             const interval = 3000; // poll every 3 seconds
@@ -55,12 +57,12 @@ const Workspace = () => {
                     const res = await fetch(fileUrl, { cache: 'no-store' });
                     if (res.ok) {
                         const json = await res.json();
-                        setNodesData(json.nodesData || []); // updated key
-                        setEdgesData(json.edgesData || []); // updated key
+                        setNodesData(json.nodesData || []);
+                        setEdgesData(json.edgesData || []);
                         return;
                     }
                 } catch (e) {
-                    // File not ready yet, or network issue. Ignore and retry.
+                    // Ignore and retry
                 }
 
                 await new Promise(resolve => setTimeout(resolve, interval));
@@ -78,10 +80,25 @@ const Workspace = () => {
 
             try {
                 setLoading(true);
-                const filename = await startJob(); // Get s3_key
-                await pollForResult(filename);
+
+                const key = `${sanitizeKey(topic)}.json`;
+                const fileUrl = `${baseUrl}${key}`;
+
+                // 🔍 Check if file already exists
+                const checkRes = await fetch(fileUrl, { method: 'HEAD', cache: 'no-store' });
+
+                if (checkRes.ok) {
+                    // File already exists — just poll and use it
+                    console.log('Mindmap already exists, skipping Lambda call.');
+                    await pollForResult(key);
+                } else {
+                    // File doesn't exist — trigger Lambda and poll
+                    const generatedKey = await startJob();
+                    await pollForResult(generatedKey);
+                }
             } catch (err) {
-                setError('Failed to trigger generation. Please try again.');
+                console.error(err);
+                setError('Failed to load mindmap. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -89,33 +106,59 @@ const Workspace = () => {
 
         fetchData();
     }, [topic]);
+    function findPathBFS(edges, target) {
+        const graph = {};
 
+        // Build adjacency list
+        edges.forEach(({ from, to }) => {
+            if (!graph[from]) graph[from] = [];
+            graph[from].push(to);
+        });
+
+        const visited = new Set();
+        const queue = [[1]];
+
+        while (queue.length) {
+            const path = queue.shift();
+            const node = path[path.length - 1];
+
+            if (node === target) return path;
+
+            if (!visited.has(node)) {
+                visited.add(node);
+                (graph[node] || []).forEach((neighbor) => {
+                    queue.push([...path, neighbor]);
+                });
+            }
+        }
+
+        return null; // No path found
+    }
 
 
     return (
-            <div className="flex flex-col h-screen p-4">
-                {loading ? (
-                    <div className="flex items-center justify-center h-full">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid" />
-                        <span className="ml-4 text-lg">Generating graph for "{topic}"...</span>
-                    </div>
-                ) : error ? (
-                    <div className="flex items-center justify-center h-full text-red-600">
-                        <p>{error}</p>
-                    </div>
-                ) : (
-                    <Graph nodesData={nodesData} edgesData={edgesData} />
-                )}
-                {isOverlayVisible && <Overlay onClose={toggleOverlay} />}
-            </div>
+        <div className="flex flex-col h-screen p-4">
+            {loading ? (
+                <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid" />
+                    <span className="ml-4 text-lg">Generating graph for "{topic}"...</span>
+                </div>
+            ) : error ? (
+                <div className="flex items-center justify-center h-full text-red-600">
+                    <p>{error}</p>
+                </div>
+            ) : (
+                <Graph nodesData={nodesData} edgesData={edgesData} />
+            )}
+            {isOverlayVisible && <Overlay onClose={toggleOverlay} />}
+        </div>
     );
 };
 
-
-export default function WorkspacePage () {
+export default function WorkspacePage() {
     return (
         <Suspense fallback={<div className="p-4 text-center">Loading workspace...</div>}>
-            <Workspace/>
+            <Workspace />
         </Suspense>
     );
 }
