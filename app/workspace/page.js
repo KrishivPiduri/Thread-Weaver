@@ -48,11 +48,14 @@ const Workspace = () => {
 
         const pollForResult = async (filename) => {
             const fileUrl = `${baseUrl}${filename}`;
-            const timeout = 60000; // 1 minute
-            const interval = 3000; // poll every 3 seconds
+            const maxTimeout = 600000; // 10 minutes
+            const initialInterval = 2000; // 2 seconds
+            const maxInterval = 30000; // cap backoff at 30 seconds
             const startTime = Date.now();
 
-            while (Date.now() - startTime < timeout) {
+            let attempt = 0;
+
+            while (Date.now() - startTime < maxTimeout) {
                 try {
                     const res = await fetch(fileUrl, { cache: 'no-store' });
                     if (res.ok) {
@@ -62,14 +65,18 @@ const Workspace = () => {
                         return;
                     }
                 } catch (e) {
-                    // Ignore and retry
+                    // Log if needed: console.warn('Fetch attempt failed', e);
                 }
 
-                await new Promise(resolve => setTimeout(resolve, interval));
+                // Exponential backoff with cap
+                const delay = Math.min(initialInterval * (2 ** attempt), maxInterval);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                attempt++;
             }
 
             throw new Error('Timed out waiting for mindmap file to be available.');
         };
+
 
         const fetchData = async () => {
             if (!topic) {
@@ -106,51 +113,79 @@ const Workspace = () => {
 
         fetchData();
     }, [topic]);
-    function findPathBFS(edges, target) {
+    function findPath(edges, targetId, rootId = 1, nodes = []) {
         const graph = {};
+        const idToLabel = {};
+
+        // Build ID to label map
+        nodes.forEach(({ id, label }) => {
+            idToLabel[id] = label;
+        });
 
         // Build adjacency list
         edges.forEach(({ from, to }) => {
             if (!graph[from]) graph[from] = [];
+            if (!graph[to]) graph[to] = [];
+
             graph[from].push(to);
+            graph[to].push(from); // undirected
         });
 
+        // Breadth-First Search (BFS)
+        const queue = [[rootId]];
         const visited = new Set();
-        const queue = [[1]];
 
-        while (queue.length) {
+        while (queue.length > 0) {
             const path = queue.shift();
             const node = path[path.length - 1];
 
-            if (node === target) return path;
+            if (node === targetId) {
+                return path.map((id) => idToLabel[id] || String(id)); // map IDs to labels
+            }
 
             if (!visited.has(node)) {
                 visited.add(node);
                 (graph[node] || []).forEach((neighbor) => {
-                    queue.push([...path, neighbor]);
+                    if (!visited.has(neighbor)) {
+                        queue.push([...path, neighbor]);
+                    }
                 });
             }
         }
 
-        return null; // No path found
+        return null; // no path found
     }
+
+
 
 
     return (
         <div className="flex flex-col h-screen p-4">
             {loading ? (
-                <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid" />
-                    <span className="ml-4 text-lg">Generating graph for "{topic}"...</span>
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4"/>
+                    <p className="text-lg font-medium text-gray-700">
+                        Generating graph for "<span className="font-semibold text-blue-600">{topic}</span>"...
+                    </p>
+                    <p className="mt-2 text-base text-gray-600 max-w-md">
+                        This will take a few minutes depending on the size of the map.<br/>
+                        <span className="font-bold text-red-600">DO NOT RELOAD!</span> Just trust the process.
+                    </p>
                 </div>
+
             ) : error ? (
                 <div className="flex items-center justify-center h-full text-red-600">
                     <p>{error}</p>
                 </div>
             ) : (
-                <Graph nodesData={nodesData} edgesData={edgesData} />
+                <Graph
+                    nodesData={nodesData}
+                    edgesData={edgesData}
+                    findPath={(edges, target) => findPath(edges, Number(target), 1, nodesData)} // root is 1
+                />
+
             )}
-            {isOverlayVisible && <Overlay onClose={toggleOverlay} />}
+            {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
         </div>
     );
 };

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { redirect } from 'next/navigation'
 
 function HomePage() {
     const [topic, setTopic] = useState('');
@@ -10,7 +9,8 @@ function HomePage() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
                 <h1 className="text-2xl font-bold text-center mb-6">AutoMind - Topic Mind Map Generator</h1>
-                <form action='/workspace' method='get'>
+                <h5 className="text-xs font-medium text-gray-600 mb-6 text-center">The more general the topic, the better the map. E.g. Search "Civil war" rather than "Battle of Gettysburg"</h5>
+                <form action='/workspace.html' method='get'>
                     <div className="mb-4">
                         <label htmlFor="topic" className="block text-sm font-medium text-gray-700">Enter a Topic</label>
                         <input

@@ -1,4 +1,5 @@
-// components/Graph.js
+'use client';
+
 import { useEffect, useRef } from 'react';
 import { Network } from 'vis-network/standalone/esm/vis-network';
 import { DataSet } from 'vis-network/standalone/esm/vis-network';
@@ -19,46 +20,87 @@ function generateDistinctColors(n) {
     return colors;
 }
 
-const Graph = ({ nodesData, edgesData }) => {
+const Graph = ({ nodesData, edgesData, findPath }) => {
     const networkContainerRef = useRef(null);
     const networkRef = useRef(null);
     const nodesRef = useRef(null);
     const edgesRef = useRef(null);
 
     useEffect(() => {
-        // Build graphology graph for clustering
-        const g = new Graphology();
-
-        nodesData.forEach((node) => g.addNode(node.id));
-        edgesData.forEach((edge) => g.addEdge(edge.from, edge.to));
-
-        const communityMap = louvain(g);
-
-        // Assign each node a group based on its community
-        const coloredNodes = nodesData.map((node) => ({
-            ...node,
-            label: node.label || node.id,
-            group: `community-${communityMap[node.id]}`,
+        // Normalize node IDs to strings
+        const normalizedNodes = nodesData.map((n) => ({
+            ...n,
+            id: String(n.id),
         }));
 
-        // Generate a list of distinct colors for communities
+        const normalizedEdges = edgesData.map((e) => ({
+            ...e,
+            from: String(e.from),
+            to: String(e.to),
+        }));
+
+        // Use a multigraph to allow multiple edges between same nodes (if needed)
+        const g = new Graphology({ type: 'undirected', multi: true });
+
+        // Add nodes
+        normalizedNodes.forEach((node) => {
+            if (node.id) g.addNode(node.id);
+        });
+
+        // Add edges with unique IDs
+        normalizedEdges.forEach((edge) => {
+            const from = edge.from;
+            const to = edge.to;
+
+            if (g.hasNode(from) && g.hasNode(to)) {
+                const edgeId = `${from}->${to}`;
+                if (!g.hasEdge(edgeId)) {
+                    try {
+                        g.addEdgeWithKey(edgeId, from, to);
+                    } catch (e) {
+                        console.warn(`Failed to add edge ${edgeId}:`, e);
+                    }
+                }
+            } else {
+                console.warn('Skipping edge due to missing node:', edge);
+            }
+        });
+
+        // Detect communities
+        const communityMap = louvain(g);
         const numCommunities = new Set(Object.values(communityMap)).size;
         const dynamicColorList = generateDistinctColors(numCommunities);
 
-        // Create a color mapping for communities
+        // Assign colors to each community
         const communityColors = {};
         let colorIndex = 0;
-
-        // Assign a distinct color to each community
-        coloredNodes.forEach((node) => {
-            const group = node.group;
+        Object.values(communityMap).forEach((communityId) => {
+            const group = `community-${communityId}`;
             if (!communityColors[group]) {
                 communityColors[group] = dynamicColorList[colorIndex];
                 colorIndex++;
             }
-            node.color = {
-                background: communityColors[group],
-                border: '#333333',
+        });
+
+        // Build coloredNodes
+        const coloredNodes = normalizedNodes.map((node) => {
+            const group = `community-${communityMap[node.id]}`;
+            const isHighlighted = node.id === '1'; // ID is a string
+
+            return {
+                ...node,
+                label: node.label || node.id,
+                group,
+                color: {
+                    background: isHighlighted ? '#FFD700' : communityColors[group],
+                    border: isHighlighted ? '#FF8C00' : '#333333',
+                },
+                size: isHighlighted ? 28 : 16,
+                font: {
+                    size: isHighlighted ? 18 : 14,
+                    color: '#000000',
+                    bold: isHighlighted,
+                },
             };
         });
 
@@ -71,9 +113,7 @@ const Graph = ({ nodesData, edgesData }) => {
         };
 
         const options = {
-            layout: {
-                improvedLayout: true,
-            },
+            layout: { improvedLayout: true },
             nodes: {
                 shape: 'dot',
                 size: 16,
@@ -85,10 +125,7 @@ const Graph = ({ nodesData, edgesData }) => {
             edges: {
                 font: { size: 12, color: '#000000' },
                 arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-                smooth: {
-                    enabled: true,
-                    type: 'dynamic',
-                },
+                smooth: { enabled: true, type: 'dynamic' },
             },
             physics: {
                 enabled: true,
@@ -115,11 +152,35 @@ const Graph = ({ nodesData, edgesData }) => {
             },
         };
 
+        // Create network
         networkRef.current = new Network(networkContainerRef.current, data, options);
 
-        networkRef.current.on('selectNode', (event) => {
+        // Attach event listeners
+        networkRef.current.on('selectNode', async (event) => {
             const selectedNodeId = event.nodes[0];
-            window.dispatchEvent(new CustomEvent('nodeSelected', { detail: selectedNodeId }));
+            const path = findPath(edgesData, selectedNodeId);
+
+            if (!path || path.length === 0) {
+                console.warn('No path found to selected node.');
+                return;
+            }
+
+            // Convert path to a string for API call
+            const pathString = path.join(',');
+
+            try {
+                // Replace this with your actual API Gateway URL
+                const response = await fetch(`https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(pathString)}`);
+                const data = await response.json();
+
+                console.log('Summary from OpenAI:', data.summary);
+
+                window.dispatchEvent(new CustomEvent('nodeSelected', {
+                    detail: { selectedNodeId, pathFromRoot: path, summary: data.summary },
+                }));
+            } catch (err) {
+                console.error('Error fetching summary:', err);
+            }
         });
 
         networkRef.current.on('zoom', (params) => {
@@ -141,14 +202,14 @@ const Graph = ({ nodesData, edgesData }) => {
             networkRef.current.setOptions({ physics: false });
         });
 
-        // Update data
+        // Populate data
         nodesRef.current.add(coloredNodes);
-        edgesRef.current.add(edgesData);
+        edgesRef.current.add(normalizedEdges);
 
         return () => {
             networkRef.current?.destroy();
         };
-    }, [nodesData, edgesData]);
+    }, [nodesData, edgesData, findPath]);
 
     return <div ref={networkContainerRef} className="relative h-full w-full flex-4"></div>;
 };
