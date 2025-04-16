@@ -1,19 +1,20 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Network } from 'vis-network/standalone/esm/vis-network';
 import { DataSet } from 'vis-network/standalone/esm/vis-network';
 import Graphology from 'graphology';
 import louvain from 'graphology-communities-louvain';
+import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import Link from 'next/link';
 
-// Function to generate distinct colors using HSL
 function generateDistinctColors(n) {
     const colors = [];
-    const saturation = 70; // %
-    const lightness = 50;  // %
+    const saturation = 70;
+    const lightness = 50;
 
     for (let i = 0; i < n; i++) {
-        const hue = Math.round((360 * i) / n); // even hue steps
+        const hue = Math.round((360 * i) / n);
         colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
     }
 
@@ -26,8 +27,10 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
     const nodesRef = useRef(null);
     const edgesRef = useRef(null);
 
+    const [summaryData, setSummaryData] = useState(null);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+
     useEffect(() => {
-        // Normalize node IDs to strings
         const normalizedNodes = nodesData.map((n) => ({
             ...n,
             id: String(n.id),
@@ -39,21 +42,18 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
             to: String(e.to),
         }));
 
-        // Use a multigraph to allow multiple edges between same nodes (if needed)
         const g = new Graphology({ type: 'undirected', multi: true });
 
-        // Add nodes
         normalizedNodes.forEach((node) => {
             if (node.id) g.addNode(node.id);
         });
 
-        // Add edges with unique IDs
         normalizedEdges.forEach((edge) => {
             const from = edge.from;
             const to = edge.to;
+            const edgeId = `${from}->${to}`;
 
             if (g.hasNode(from) && g.hasNode(to)) {
-                const edgeId = `${from}->${to}`;
                 if (!g.hasEdge(edgeId)) {
                     try {
                         g.addEdgeWithKey(edgeId, from, to);
@@ -61,17 +61,13 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
                         console.warn(`Failed to add edge ${edgeId}:`, e);
                     }
                 }
-            } else {
-                console.warn('Skipping edge due to missing node:', edge);
             }
         });
 
-        // Detect communities
         const communityMap = louvain(g);
         const numCommunities = new Set(Object.values(communityMap)).size;
         const dynamicColorList = generateDistinctColors(numCommunities);
 
-        // Assign colors to each community
         const communityColors = {};
         let colorIndex = 0;
         Object.values(communityMap).forEach((communityId) => {
@@ -82,10 +78,9 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
             }
         });
 
-        // Build coloredNodes
         const coloredNodes = normalizedNodes.map((node) => {
             const group = `community-${communityMap[node.id]}`;
-            const isHighlighted = node.id === '1'; // ID is a string
+            const isHighlighted = node.id === '1';
 
             return {
                 ...node,
@@ -120,7 +115,6 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
                 font: { size: 14, color: '#000000' },
                 borderWidth: 2,
                 labelHighlightBold: true,
-                title: 'node',
             },
             edges: {
                 font: { size: 12, color: '#000000' },
@@ -152,10 +146,8 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
             },
         };
 
-        // Create network
         networkRef.current = new Network(networkContainerRef.current, data, options);
 
-        // Attach event listeners
         networkRef.current.on('selectNode', async (event) => {
             const selectedNodeId = event.nodes[0];
             const path = findPath(edgesData, selectedNodeId);
@@ -165,19 +157,17 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
                 return;
             }
 
-            // Convert path to a string for API call
             const pathString = path.join(',');
 
             try {
-                // Replace this with your actual API Gateway URL
                 const response = await fetch(`https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(pathString)}`);
                 const data = await response.json();
 
-                console.log('Summary from OpenAI:', data.summary);
-
-                window.dispatchEvent(new CustomEvent('nodeSelected', {
-                    detail: { selectedNodeId, pathFromRoot: path, summary: data.summary },
-                }));
+                setSummaryData({
+                    node: selectedNodeId,
+                    summary: data.summary,
+                    path,
+                });
             } catch (err) {
                 console.error('Error fetching summary:', err);
             }
@@ -185,16 +175,9 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
 
         networkRef.current.on('zoom', (params) => {
             const scale = params.scale;
-            const nodeFontSize = 14 / scale;
-            const edgeFontSize = 12 / scale;
-
             networkRef.current.setOptions({
-                nodes: {
-                    font: { size: nodeFontSize },
-                },
-                edges: {
-                    font: { size: edgeFontSize },
-                },
+                nodes: { font: { size: 14 / scale } },
+                edges: { font: { size: 12 / scale } },
             });
         });
 
@@ -202,7 +185,6 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
             networkRef.current.setOptions({ physics: false });
         });
 
-        // Populate data
         nodesRef.current.add(coloredNodes);
         edgesRef.current.add(normalizedEdges);
 
@@ -211,7 +193,49 @@ const Graph = ({ nodesData, edgesData, findPath }) => {
         };
     }, [nodesData, edgesData, findPath]);
 
-    return <div ref={networkContainerRef} className="relative h-full w-full flex-4"></div>;
+    return (
+        <div className="flex h-full w-full relative">
+            <div ref={networkContainerRef} className="flex-1 h-full relative z-0" />
+
+            {/* Sidebar toggle button */}
+            <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="absolute top-4 right-4 z-20 bg-white p-2 rounded-full shadow-md border border-gray-300 hover:bg-gray-100 transition"
+            >
+                {sidebarOpen ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            </button>
+
+            {/* Sidebar */}
+            <div
+                className={`fixed right-0 top-0 h-full w-80 transform transition-transform duration-300 ease-in-out z-10 bg-white border-l border-gray-300 shadow-xl p-4 overflow-y-auto ${
+                    sidebarOpen ? 'translate-x-0' : 'translate-x-full'
+                }`}
+            >
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold text-gray-800">Summary</h2>
+                    <Link
+                        href="/"
+                        className="flex items-center gap-1 text-blue-600 hover:underline text-sm"
+                    >
+                        <Home className="w-4 h-4" />
+                        Back to Home
+                    </Link>
+                </div>
+
+                {summaryData ? (
+                    <>
+                        <h3 className="text-md font-medium mb-1 text-gray-700">Node {summaryData.node}</h3>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{summaryData.summary}</p>
+                        <div className="mt-4 text-xs text-gray-500">
+                            <strong>Path:</strong> {summaryData.path.join(' → ')}
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-sm text-gray-500 italic">Select a node to see its summary.</div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default Graph;
