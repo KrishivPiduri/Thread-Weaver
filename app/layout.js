@@ -20,6 +20,11 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+        <head>
+            <link rel="icon" href="/favicon.ico" />
+            <title>AutoMind</title>
+            <meta name="theme-color" content="#000000" />
+        </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
