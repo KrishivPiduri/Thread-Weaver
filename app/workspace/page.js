@@ -14,6 +14,9 @@ const Workspace = () => {
     const [edgesData, setEdgesData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [key, setKey] = useState(''); // This will hold the generated or fetched key for the graph.
+    const [selectedNodeId, setSelectedNodeId] = useState(null);
+
 
     const searchParams = useSearchParams();
     const topic = searchParams.get('topic');
@@ -88,7 +91,8 @@ const Workspace = () => {
             try {
                 setLoading(true);
 
-                const key = `${sanitizeKey(topic)}.json`;
+                var key = `${sanitizeKey(topic)}.json`; // Generate the key here
+                setKey(key); // Store the key for use later
                 const fileUrl = `${baseUrl}${key}`;
 
                 // 🔍 Check if file already exists
@@ -102,6 +106,7 @@ const Workspace = () => {
                     // File doesn't exist — trigger Lambda and poll
                     const generatedKey = await startJob();
                     await pollForResult(generatedKey);
+                    setKey(generatedKey); // Set the new key
                 }
             } catch (err) {
                 console.error(err);
@@ -113,6 +118,7 @@ const Workspace = () => {
 
         fetchData();
     }, [topic]);
+
     function findPath(edges, targetId, rootId = 1, nodes = []) {
         const graph = {};
         const idToLabel = {};
@@ -155,8 +161,18 @@ const Workspace = () => {
 
         return null; // no path found
     }
-
-
+    const reloadGraph = async () => {
+        try {
+            const fileUrl = `https://automindbucket.hackyourgrade.com/${key}`;
+            const res = await fetch(fileUrl, { cache: 'no-store' });
+            if (!res.ok) throw new Error('Failed to reload graph');
+            const json = await res.json();
+            setNodesData(json.nodesData || []);
+            setEdgesData(json.edgesData || []);
+        } catch (err) {
+            console.error('Reload error:', err);
+        }
+    };
 
 
     return (
@@ -172,7 +188,6 @@ const Workspace = () => {
                         <span className="font-bold text-red-600">DO NOT RELOAD!</span> Just trust the process.
                     </p>
                 </div>
-
             ) : error ? (
                 <div className="flex items-center justify-center h-full text-red-600">
                     <p>{error}</p>
@@ -182,8 +197,11 @@ const Workspace = () => {
                     nodesData={nodesData}
                     edgesData={edgesData}
                     findPath={(edges, target) => findPath(edges, Number(target), 1, nodesData)} // root is 1
+                    graphKey={key} // Pass the key here to the Graph component
+                    reloadGraph={reloadGraph}
+                    selectedNodeId={selectedNodeId}
+                    setSelectedNodeId={setSelectedNodeId}
                 />
-
             )}
             {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
         </div>

@@ -8,230 +8,172 @@ import louvain from 'graphology-communities-louvain';
 import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import Link from 'next/link';
 
+// Generate distinct HSL colors for communities
 function generateDistinctColors(n) {
     const colors = [];
-    const saturation = 70;
-    const lightness = 50;
-
     for (let i = 0; i < n; i++) {
         const hue = Math.round((360 * i) / n);
-        colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+        colors.push(`hsl(${hue}, 70%, 50%)`);
     }
-
     return colors;
 }
 
-const Graph = ({ nodesData, edgesData, findPath }) => {
+const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph }) => {
     const networkContainerRef = useRef(null);
     const networkRef = useRef(null);
     const nodesRef = useRef(null);
     const edgesRef = useRef(null);
 
+    const [isLoading, setIsLoading] = useState(false);
     const [summaryData, setSummaryData] = useState(null);
+    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+    const [selectedNode, setSelectedNode] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
+    // Initialize network once when data changes
     useEffect(() => {
-        const normalizedNodes = nodesData.map((n) => ({
-            ...n,
-            id: String(n.id),
-        }));
+        // Normalize node/edge IDs to strings
+        const normalizedNodes = nodesData.map(n => ({ ...n, id: String(n.id) }));
+        const normalizedEdges = edgesData.map(e => ({ ...e, from: String(e.from), to: String(e.to) }));
 
-        const normalizedEdges = edgesData.map((e) => ({
-            ...e,
-            from: String(e.from),
-            to: String(e.to),
-        }));
-
+        // Build graphology graph
         const g = new Graphology({ type: 'undirected', multi: true });
-
-        normalizedNodes.forEach((node) => {
-            if (node.id) g.addNode(node.id);
-        });
-
-        normalizedEdges.forEach((edge) => {
-            const from = edge.from;
-            const to = edge.to;
-            const edgeId = `${from}->${to}`;
-
-            if (g.hasNode(from) && g.hasNode(to)) {
-                if (!g.hasEdge(edgeId)) {
-                    try {
-                        g.addEdgeWithKey(edgeId, from, to);
-                    } catch (e) {
-                        console.warn(`Failed to add edge ${edgeId}:`, e);
-                    }
-                }
+        normalizedNodes.forEach(node => node.id && g.addNode(node.id));
+        normalizedEdges.forEach(edge => {
+            const key = `${edge.from}->${edge.to}`;
+            if (g.hasNode(edge.from) && g.hasNode(edge.to) && !g.hasEdge(key)) {
+                g.addEdgeWithKey(key, edge.from, edge.to);
             }
         });
 
+        // Community detection
         const communityMap = louvain(g);
-        const numCommunities = new Set(Object.values(communityMap)).size;
-        const dynamicColorList = generateDistinctColors(numCommunities);
-
+        const count = new Set(Object.values(communityMap)).size;
+        const palette = generateDistinctColors(count);
         const communityColors = {};
-        let colorIndex = 0;
-        Object.values(communityMap).forEach((communityId) => {
-            const group = `community-${communityId}`;
-            if (!communityColors[group]) {
-                communityColors[group] = dynamicColorList[colorIndex];
-                colorIndex++;
-            }
+        normalizedNodes.forEach((node, idx) => {
+            const cid = communityMap[node.id];
+            if (!communityColors[cid]) communityColors[cid] = palette[idx % palette.length];
         });
 
-        const coloredNodes = normalizedNodes.map((node) => {
-            const group = `community-${communityMap[node.id]}`;
-            const isHighlighted = node.id === '1';
+        // Prepare nodes with styles
+        const styledNodes = normalizedNodes.map(node => ({
+            ...node,
+            label: node.label || node.id,
+            color: {
+                background: node.id === '1' ? '#FFD700' : communityColors[communityMap[node.id]],
+                border: node.id === '1' ? '#FF8C00' : '#333333'
+            },
+            size: node.id === '1' ? 28 : 16,
+            font: { size: node.id === '1' ? 18 : 14, color: '#000', bold: node.id === '1' }
+        }));
 
-            return {
-                ...node,
-                label: node.label || node.id,
-                group,
-                color: {
-                    background: isHighlighted ? '#FFD700' : communityColors[group],
-                    border: isHighlighted ? '#FF8C00' : '#333333',
-                },
-                size: isHighlighted ? 28 : 16,
-                font: {
-                    size: isHighlighted ? 18 : 14,
-                    color: '#000000',
-                    bold: isHighlighted,
-                },
-            };
-        });
+        // Initialize vis DataSets
+        nodesRef.current = new DataSet(styledNodes);
+        edgesRef.current = new DataSet(normalizedEdges);
 
-        nodesRef.current = new DataSet();
-        edgesRef.current = new DataSet();
-
-        const data = {
-            nodes: nodesRef.current,
-            edges: edgesRef.current,
-        };
-
+        const data = { nodes: nodesRef.current, edges: edgesRef.current };
         const options = {
             layout: { improvedLayout: true },
-            nodes: {
-                shape: 'dot',
-                size: 16,
-                font: { size: 14, color: '#000000' },
-                borderWidth: 2,
-                labelHighlightBold: true,
-            },
-            edges: {
-                font: { size: 12, color: '#000000' },
-                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-                smooth: { enabled: true, type: 'dynamic' },
-            },
+            nodes: { shape: 'dot', borderWidth: 2 },
+            edges: { smooth: { type: 'dynamic' }, arrows: { to: { enabled: true, scaleFactor: 0.5 } } },
             physics: {
                 enabled: true,
                 solver: 'forceAtlas2Based',
-                forceAtlas2Based: {
-                    gravitationalConstant: -50,
-                    centralGravity: 0.01,
-                    springLength: 150,
-                    springConstant: 0.08,
-                    damping: 0.4,
-                    avoidOverlap: 1,
-                },
-                stabilization: {
-                    enabled: true,
-                    iterations: 300,
-                    updateInterval: 25,
-                    fit: true,
-                },
+                forceAtlas2Based: { gravitationalConstant: -50, centralGravity: 0.01, springLength: 150, springConstant: 0.08, damping: 0.4, avoidOverlap: 1 },
+                stabilization: { enabled: true, iterations: 300, updateInterval: 25, fit: true }
             },
             interaction: {
                 tooltipDelay: 200,
-                hideEdgesOnDrag: false,
-                hideNodesOnDrag: false,
+                dragNodes: true,
+                dragView: true
             },
         };
 
+        // Destroy previous network
+        if (networkRef.current) networkRef.current.destroy();
+        // Create new network
         networkRef.current = new Network(networkContainerRef.current, data, options);
 
-        networkRef.current.on('selectNode', async (event) => {
-            const selectedNodeId = event.nodes[0];
-            const path = findPath(edgesData, selectedNodeId);
-
-            if (!path || path.length === 0) {
-                console.warn('No path found to selected node.');
-                return;
-            }
-
-            const pathString = path.join(',');
-
-            try {
-                const response = await fetch(`https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(pathString)}`);
-                const data = await response.json();
-
-                setSummaryData({
-                    node: selectedNodeId,
-                    summary: data.summary,
-                    path,
-                });
-            } catch (err) {
-                console.error('Error fetching summary:', err);
+        // Node selection event
+        networkRef.current.on('selectNode', ({ nodes }) => {
+            const sel = nodes[0];
+            if (sel !== selectedNode) {
+                setSelectedNode(sel);
             }
         });
 
-        networkRef.current.on('zoom', (params) => {
-            const scale = params.scale;
-            networkRef.current.setOptions({
-                nodes: { font: { size: 14 / scale } },
-                edges: { font: { size: 12 / scale } },
-            });
+        // Zoom event for dynamic font
+        networkRef.current.on('zoom', ({ scale }) => {
+            networkRef.current.setOptions({ nodes: { font: { size: 14 / scale } } });
         });
 
-        networkRef.current.once('stabilizationIterationsDone', () => {
-            networkRef.current.setOptions({ physics: false });
-        });
 
-        nodesRef.current.add(coloredNodes);
-        edgesRef.current.add(normalizedEdges);
-
-        return () => {
-            networkRef.current?.destroy();
-        };
+        // Cleanup
+        return () => networkRef.current?.destroy();
     }, [nodesData, edgesData, findPath]);
+
+    // Handle selection: focus and fetch summary
+    useEffect(() => {
+        if (!selectedNode) return;
+
+        // Focus on selected + neighbors
+        networkRef.current.selectNodes([selectedNode]);
+        const neighbors = networkRef.current.getConnectedNodes(selectedNode);
+        networkRef.current.fit({ nodes: [selectedNode, ...neighbors], animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
+
+        // Fetch summary
+        const path = findPath(edgesData, selectedNode);
+        if (path?.length) {
+            setIsSummaryLoading(true);
+            fetch(`https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(path.join(','))}`)
+                .then(res => res.json())
+                .then(data => setSummaryData({ node: selectedNode, summary: data.summary, path }))
+                .catch(err => console.error(err))
+                .finally(() => setIsSummaryLoading(false));
+        }
+    }, [selectedNode]);
 
     return (
         <div className="flex h-full w-full relative">
-            <div ref={networkContainerRef} className="flex-1 h-full relative z-0" />
+            <div ref={networkContainerRef} className="flex-1 h-full" />
 
-            {/* Sidebar toggle button */}
-            <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="absolute top-4 right-4 z-20 bg-white p-2 rounded-full shadow-md border border-gray-300 hover:bg-gray-100 transition"
-            >
-                {sidebarOpen ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            {/* Sidebar toggle */}
+            <button onClick={() => setSidebarOpen(o => !o)} className="absolute top-4 right-4 p-2 bg-white rounded-full shadow border hover:bg-gray-100">
+                {sidebarOpen ? <ChevronRight /> : <ChevronLeft />}
             </button>
 
-            {/* Sidebar */}
-            <div
-                className={`fixed right-0 top-0 h-full w-80 transform transition-transform duration-300 ease-in-out z-10 bg-white border-l border-gray-300 shadow-xl p-4 overflow-y-auto ${
-                    sidebarOpen ? 'translate-x-0' : 'translate-x-full'
-                }`}
-            >
+            {/* Summary sidebar */}
+            <div className={`fixed right-0 top-0 h-full w-80 bg-white p-4 shadow-lg border-l transform transition ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Summary</h2>
-                    <Link
-                        href="/"
-                        className="flex items-center gap-1 text-blue-600 hover:underline text-sm"
-                    >
-                        <Home className="w-4 h-4" />
-                        Back to Home
-                    </Link>
+                    <h2 className="text-lg font-semibold">Summary</h2>
+                    <Link href="/" className="text-blue-600 hover:underline text-sm flex items-center gap-1"><Home className="w-4 h-4"/>Back</Link>
                 </div>
 
-                {summaryData ? (
+                {isSummaryLoading ? (
+                    <div className="text-center text-gray-600">Loading summary...</div>
+                ) : summaryData ? (
                     <>
-                        <h3 className="text-md font-medium mb-1 text-gray-700">Node {summaryData.node}</h3>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{summaryData.summary}</p>
-                        <div className="mt-4 text-xs text-gray-500">
-                            <strong>Path:</strong> {summaryData.path.join(' → ')}
-                        </div>
+                        <h3 className="font-medium mb-2">Node {summaryData.node}</h3>
+                        <p className="text-sm whitespace-pre-wrap mb-2">{summaryData.summary}</p>
+                        <div className="text-xs text-gray-500 mb-4"><strong>Path:</strong> {summaryData.path.join(' → ')}</div>
+                        <button
+                            onClick={async () => {
+                                setIsLoading(true);
+                                await fetch(
+                                    `https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand?topic_path=${encodeURIComponent(summaryData.path.join(' > '))}&expand_node_id=${summaryData.node}&key=${graphKey}`
+                                );
+                                await reloadGraph();
+                                setIsLoading(false);
+                            }}
+                            disabled={isLoading}
+                            className={`w-full py-2 rounded-lg text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        >
+                            {isLoading ? 'Expanding...' : 'Expand'}
+                        </button>
                     </>
                 ) : (
-                    <div className="text-sm text-gray-500 italic">Select a node to see its summary.</div>
+                    <div className="italic text-gray-500 text-sm">Select a node start expanding the mind map and to see details.</div>
                 )}
             </div>
         </div>
