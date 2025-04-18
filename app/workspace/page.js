@@ -8,6 +8,8 @@ import '@/app/globals.css';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
 
+
+
 const Workspace = () => {
     const [isOverlayVisible, setIsOverlayVisible] = useState(false);
     const [nodesData, setNodesData] = useState([]);
@@ -16,7 +18,47 @@ const Workspace = () => {
     const [error, setError] = useState('');
     const [key, setKey] = useState(''); // This will hold the generated or fetched key for the graph.
     const [selectedNodeId, setSelectedNodeId] = useState(null);
+    const [fullNodesData, setFullNodesData] = useState([]);
+    const [fullEdgesData, setFullEdgesData] = useState([]);
 
+    function findPath(edges, targetId, rootId = 1, nodes = []) {
+        const graph = {};
+        const idToLabel = {};
+
+        nodes.forEach(({ id, label }) => {
+            idToLabel[id] = label;
+        });
+
+        edges.forEach(({ from, to }) => {
+            if (!graph[from]) graph[from] = [];
+            if (!graph[to]) graph[to] = [];
+            graph[from].push(to);
+            graph[to].push(from); // undirected graph
+        });
+
+        const queue = [[rootId]];
+        const visited = new Set();
+
+        while (queue.length > 0) {
+            const path = queue.shift();
+            const node = path[path.length - 1];
+
+            if (node === targetId) {
+                return path.map((id) => idToLabel[id] || String(id));
+            }
+
+            if (!visited.has(node)) {
+                visited.add(node);
+                (graph[node] || []).forEach((neighbor) => {
+                    if (!visited.has(neighbor)) {
+                        queue.push([...path, neighbor]);
+                    }
+                });
+            }
+        }
+
+        return null;
+    }
 
     const searchParams = useSearchParams();
     const topic = searchParams.get('topic');
@@ -26,6 +68,7 @@ const Workspace = () => {
     };
 
     useEffect(() => {
+
         const baseUrl = 'https://automindbucket.hackyourgrade.com/';
         const sanitizeKey = (str) => str.replace(/\s+/g, '').toLowerCase();
 
@@ -63,8 +106,8 @@ const Workspace = () => {
                     const res = await fetch(fileUrl, { cache: 'no-store' });
                     if (res.ok) {
                         const json = await res.json();
-                        setNodesData(json.nodesData || []);
-                        setEdgesData(json.edgesData || []);
+                        // Only keep root node and its immediate neighbors
+                        filterRootAndNeighbors(json.nodesData, json.edgesData);
                         return;
                     }
                 } catch (e) {
@@ -79,7 +122,6 @@ const Workspace = () => {
 
             throw new Error('Timed out waiting for mindmap file to be available.');
         };
-
 
         const fetchData = async () => {
             if (!topic) {
@@ -119,61 +161,78 @@ const Workspace = () => {
         fetchData();
     }, [topic]);
 
-    function findPath(edges, targetId, rootId = 1, nodes = []) {
-        const graph = {};
-        const idToLabel = {};
+    // Function to filter out root node and its immediate neighbors
+    const filterRootAndNeighbors = (nodes, edges) => {
+        setFullNodesData(nodes)
+        setFullEdgesData(edges)
+        // Find root node (assuming root node id = 1)
+        const rootNode = nodes.find((node) => node.id === 1);
+        if (!rootNode) return; // If no root node, return early
 
-        // Build ID to label map
-        nodes.forEach(({ id, label }) => {
-            idToLabel[id] = label;
+        // Get all the neighbors of the root node
+        const neighbors = new Set();
+        edges.forEach(edge => {
+            if (edge.from === 1) neighbors.add(edge.to);
+            if (edge.to === 1) neighbors.add(edge.from);
         });
 
-        // Build adjacency list
-        edges.forEach(({ from, to }) => {
-            if (!graph[from]) graph[from] = [];
-            if (!graph[to]) graph[to] = [];
+        // Filter nodes to only include the root node and its immediate neighbors
+        const filteredNodes = nodes.filter(node => node.id === 1 || neighbors.has(node.id));
+        const filteredEdges = edges.filter(
+            edge => neighbors.has(edge.from) || neighbors.has(edge.to)
+        );
 
-            graph[from].push(to);
-            graph[to].push(from); // undirected
-        });
+        setNodesData(filteredNodes);
+        setEdgesData(filteredEdges);
+    };
 
-        // Breadth-First Search (BFS)
-        const queue = [[rootId]];
-        const visited = new Set();
-
-        while (queue.length > 0) {
-            const path = queue.shift();
-            const node = path[path.length - 1];
-
-            if (node === targetId) {
-                return path.map((id) => idToLabel[id] || String(id)); // map IDs to labels
-            }
-
-            if (!visited.has(node)) {
-                visited.add(node);
-                (graph[node] || []).forEach((neighbor) => {
-                    if (!visited.has(neighbor)) {
-                        queue.push([...path, neighbor]);
-                    }
-                });
-            }
-        }
-
-        return null; // no path found
-    }
     const reloadGraph = async () => {
         try {
             const fileUrl = `https://automindbucket.hackyourgrade.com/${key}`;
-            const res = await fetch(fileUrl, { cache: 'no-store' });
+            const res     = await fetch(fileUrl, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to reload graph');
             const json = await res.json();
-            setNodesData(json.nodesData || []);
-            setEdgesData(json.edgesData || []);
+
+            // Update full references
+            setFullNodesData(json.nodesData);
+            setFullEdgesData(json.edgesData);
+
+            // Merge new nodes
+            setNodesData(current => {
+                const have = new Set(current.map(n => String(n.id)));
+                const add  = json.nodesData
+                    .filter(n => !have.has(String(n.id)))
+                    .map(n => ({ ...n, id: String(n.id) }));
+                return [...current, ...add];
+            });
+
+            // Merge new edges
+            setEdgesData(current => {
+                const haveEdge = new Set(current.map(e => `${e.from}->${e.to}`));
+                const addEdge = json.edgesData
+                    .filter(e => !haveEdge.has(`${e.from}->${e.to}`))
+                    .map(e => ({ from: String(e.from), to: String(e.to) }));
+                return [...current, ...addEdge];
+            });
         } catch (err) {
             console.error('Reload error:', err);
         }
     };
 
+    // inside Workspace component, alongside reloadGraph:
+    const handleLocalExpand = (nodeId, missingNeighborIds) => {
+        // 1) pull just those nodes & edges out of the “full” sets
+        const newNodes = fullNodesData
+            .filter(n => missingNeighborIds.includes(String(n.id)))
+            .map(n => ({
+                ...n,
+                id: String(n.id),
+                label: n.label || String(n.id),
+            }));
+
+        // 2) merge into the existing state
+        setNodesData(nd => [...nd, ...newNodes]);
+    };
 
     return (
         <div className="flex flex-col h-screen p-4">
@@ -196,11 +255,13 @@ const Workspace = () => {
                 <Graph
                     nodesData={nodesData}
                     edgesData={edgesData}
-                    findPath={(edges, target) => findPath(edges, Number(target), 1, nodesData)} // root is 1
                     graphKey={key} // Pass the key here to the Graph component
                     reloadGraph={reloadGraph}
                     selectedNodeId={selectedNodeId}
+                    onLocalExpand={handleLocalExpand}
                     setSelectedNodeId={setSelectedNodeId}
+                    findPath={findPath}
+                    fullEdgesData={fullEdgesData}
                 />
             )}
             {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
