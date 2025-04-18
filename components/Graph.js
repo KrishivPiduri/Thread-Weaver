@@ -29,7 +29,6 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
     const [selectedNode, setSelectedNode] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-
     useEffect(() => {
         const normalizedNodes = nodesData.map(n => ({ ...n, id: String(n.id) }));
         const normalizedEdges = edgesData.map(e => ({ ...e, from: String(e.from), to: String(e.to), label: "" }));
@@ -170,17 +169,21 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
     };
 
     return (
-        <div className="flex h-full w-full relative">
-            <div ref={networkContainerRef} className="flex-1 h-full" />
+        <div className="flex flex-col md:flex-row h-full w-full">
+            {/* Graph Container */}
+            <div
+                ref={networkContainerRef}
+                className="flex-grow md:basis-2/3 min-h-[300px] h-full md:h-auto overflow-hidden"
+            />
 
-            <button onClick={() => setSidebarOpen(o => !o)} className="absolute top-4 right-4 p-2 bg-white rounded-full shadow border hover:bg-gray-100">
-                {sidebarOpen ? <ChevronRight /> : <ChevronLeft />}
-            </button>
-
-            <div className={`fixed right-0 top-0 h-full w-80 bg-white p-4 shadow-lg border-l transform transition ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Summary Sidebar */}
+            <div className={`md:flex-shrink md:basis-1/3 w-full bg-white p-4 border-l overflow-auto`}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-semibold">Summary</h2>
-                    <Link href="/" className="text-blue-600 hover:underline text-sm flex items-center gap-1"><Home className="w-4 h-4"/>Back</Link>
+                    <Link href="/" className="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                        <Home className="w-4 h-4"/>
+                        Back
+                    </Link>
                 </div>
 
                 {isSummaryLoading ? (
@@ -189,23 +192,31 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
                     <>
                         <h3 className="font-medium mb-2">Node {summaryData.node}</h3>
                         <p className="text-sm whitespace-pre-wrap mb-2">{summaryData.summary}</p>
-                        <div className="text-xs text-gray-500 mb-4"><strong>Path:</strong> {summaryData.path.join(' → ')}</div>
-                        {!edgesData.some(e =>
-                            String(e.from) === selectedNode &&
-                            nodesData.some(n => String(n.id) === String(e.to))
+                        <div className="text-xs text-gray-500 mb-4">
+                            <strong>Path:</strong> {summaryData.path.join(' → ')}
+                        </div>
+                        {!edgesData.some(
+                            e =>
+                                String(e.from) === selectedNode &&
+                                nodesData.some(n => String(n.id) === String(e.to))
                         ) && (
                             <button
                                 onClick={handleExpand}
                                 disabled={isLoading}
-                                className={`w-full py-2 rounded-lg text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} cursor-pointer`}
+                                className={`w-full py-2 rounded-lg text-white ${
+                                    isLoading
+                                        ? 'bg-gray-400 cursor-not-allowed'
+                                        : 'bg-blue-600 hover:bg-blue-700'
+                                }`}
                             >
                                 {isLoading ? 'Expanding...' : 'Expand'}
                             </button>
                         )}
                     </>
                 ) : (
-                    <div className="italic text-gray-500 text-sm">Select a node start expanding the mind map and to see
-                        details.</div>
+                    <div className="italic text-gray-500 text-sm">
+                        Select a node to start expanding the mind map and to see details.
+                    </div>
                 )}
             </div>
         </div>
