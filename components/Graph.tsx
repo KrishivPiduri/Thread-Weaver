@@ -5,6 +5,8 @@ import Graphology from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import { Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useGraphData } from '../context/GraphDataContext';
+
 
 type Node = {
     id: string | number;
@@ -36,14 +38,10 @@ const generateDistinctColors = (n: number): string[] => {
 };
 
 const Graph: React.FC<GraphProps> = ({
-                                         nodesData,
-                                         edgesData,
                                          findPath,
                                          graphKey,
-                                         reloadGraph,
-                                         fullEdgesData,
-                                         onLocalExpand,
                                      }) => {
+    const { nodesData, setNodesData, edgesData, setEdgesData } = useGraphData();
     const networkContainerRef = useRef<HTMLDivElement | null>(null);
     const networkRef = useRef<Network | null>(null);
     const nodesRef = useRef<DataSet<any> | null>(null);
@@ -195,47 +193,43 @@ const Graph: React.FC<GraphProps> = ({
         if (!selectedNode || !summaryData) return;
         setIsLoading(true);
 
-        const fullNeighbors = fullEdgesData.reduce((acc, edge) => {
-            const from = String(edge.from),
-                to = String(edge.to);
-            if (from === selectedNode) acc.add(to);
-            else if (to === selectedNode) acc.add(from);
-            return acc;
-        }, new Set<string>());
-
-        const currentIds = new Set(nodesData.map((n) => String(n.id)));
-        const missing = [...fullNeighbors].filter((id) => !currentIds.has(id));
-
-        const existingEdges = new Set(edgesData.map((e) => `${e.from}->${e.to}`));
-        const newEdges = missing.filter((id) => {
-            const relEdges = fullEdgesData.filter(
-                (e) => e.from === selectedNode && e.to === id || e.to === selectedNode && e.from === id
-            );
-            return relEdges.every((e) => !existingEdges.has(`${e.from}->${e.to}`));
-        });
-
-        if (newEdges.length > 0) {
-            onLocalExpand(selectedNode, missing);
-            setIsLoading(false);
-            return;
-        }
-
         try {
+            const topicPath = summaryData.path.join(" > ");
             const url = new URL("https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand");
-            url.searchParams.set("topic_path", summaryData.path.join(" > "));
+            url.searchParams.set("topic_path", topicPath);
             url.searchParams.set("expand_node_id", selectedNode);
             url.searchParams.set("key", graphKey);
 
-            onLocalExpand(selectedNode, missing);
             const res = await fetch(url.toString());
-            if (!res.ok) console.error("Expand API error", res.status);
-            else await reloadGraph();
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Expand API error:", res.status, errorData);
+                return;
+            }
+
+            const data = await res.json();
+            const newNodeNames: string[] = data.new_node_names || [];
+
+            const newNodes = newNodeNames.map((name) => ({
+                id: name,
+                label: name,
+            }));
+
+            const newEdges = newNodeNames.map((name) => ({
+                from: selectedNode,
+                to: name,
+            }));
+
+            setNodesData((prev) => [...prev, ...newNodes]);
+            setEdgesData((prev) => [...prev, ...newEdges]);
+
         } catch (err) {
             console.error("Expand failed:", err);
         } finally {
             setIsLoading(false);
         }
     };
+
 
     return (
         <div

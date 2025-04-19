@@ -4,6 +4,7 @@ import Overlay from '../../components/Overlay';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
 import { useTopic } from '../../context/TopicContext';
+import {useGraphData} from "../../context/GraphDataContext";
 
 interface NodeType {
     id: number | string;
@@ -19,8 +20,6 @@ interface EdgeType {
 
 const Workspace: React.FC = () => {
     const [isOverlayVisible, setIsOverlayVisible] = useState<boolean>(false);
-    const [nodesData, setNodesData] = useState<NodeType[]>([]);
-    const [edgesData, setEdgesData] = useState<EdgeType[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>('');
     const [key, setKey] = useState<string>(''); // This will hold the generated or fetched key for the graph.
@@ -28,6 +27,7 @@ const Workspace: React.FC = () => {
     const [fullNodesData, setFullNodesData] = useState<NodeType[]>([]);
     const [fullEdgesData, setFullEdgesData] = useState<EdgeType[]>([]);
     const [topic] = useTopic();
+    const { nodesData, setNodesData, edgesData, setEdgesData } = useGraphData();
 
     function findPath(
         edges: EdgeType[],
@@ -78,47 +78,6 @@ const Workspace: React.FC = () => {
     };
 
     useEffect(() => {
-        const baseUrl = 'https://automindbucket.hackyourgrade.com/';
-        const sanitizeKey = (str: string) => str.replace(/\s+/g, '').toLowerCase();
-
-        const startJob = async (): Promise<string> => {
-            const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ root_topic: topic }),
-            });
-
-            if (!response.ok) throw new Error('Failed to start mindmap generation');
-            const result = await response.json();
-            if (!result.s3_key) throw new Error('Missing s3_key in Lambda response');
-            return result.s3_key;
-        };
-
-        const pollForResult = async (filename: string) => {
-            const fileUrl = `${baseUrl}${filename}`;
-            const maxTimeout = 600000;
-            const initialInterval = 2000;
-            const maxInterval = 30000;
-            const startTime = Date.now();
-            let attempt = 0;
-
-            while (Date.now() - startTime < maxTimeout) {
-                try {
-                    const res = await fetch(fileUrl, { cache: 'no-store' });
-                    if (res.ok) {
-                        const json = await res.json();
-                        filterRootAndNeighbors(json.nodesData, json.edgesData);
-                        return;
-                    }
-                } catch {}
-                const delay = Math.min(initialInterval * 2 ** attempt, maxInterval);
-                await new Promise((resolve) => setTimeout(resolve, delay));
-                attempt++;
-            }
-
-            throw new Error('Timed out waiting for mindmap file to be available.');
-        };
-
         const fetchData = async () => {
             if (!topic) {
                 setError('No topic provided.');
@@ -129,20 +88,22 @@ const Workspace: React.FC = () => {
             try {
                 setLoading(true);
 
-                const sanitized = sanitizeKey(topic);
-                const defaultKey = `${sanitized}.json`;
-                setKey(defaultKey);
-                const fileUrl = `${baseUrl}${defaultKey}`;
+                const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ root_topic: topic }),
+                });
 
-                const checkRes = await fetch(fileUrl, { method: 'HEAD', cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to generate mindmap');
 
-                if (checkRes.ok) {
-                    await pollForResult(defaultKey);
-                } else {
-                    const generatedKey = await startJob();
-                    await pollForResult(generatedKey);
-                    setKey(generatedKey);
+                const result = await response.json();
+
+                if (!result.nodesData || !result.edgesData) {
+                    throw new Error('Invalid response: missing nodes or edges data');
                 }
+
+                setKey(result.s3_key || ''); // optional key if still returned
+                filterRootAndNeighbors(result.nodesData, result.edgesData);
             } catch (err) {
                 console.error(err);
                 setError('Failed to load mindmap. Please try again.');
@@ -153,6 +114,7 @@ const Workspace: React.FC = () => {
 
         fetchData();
     }, [topic]);
+
 
     const filterRootAndNeighbors = (nodes: NodeType[], edges: EdgeType[]) => {
         setFullNodesData(nodes);
