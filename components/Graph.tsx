@@ -5,8 +5,8 @@ import { Network } from 'vis-network/standalone/esm/vis-network';
 import { DataSet } from 'vis-network/standalone/esm/vis-network';
 import Graphology from 'graphology';
 import louvain from 'graphology-communities-louvain';
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
-import Link from 'next/link';
+import { Home } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function generateDistinctColors(n) {
     const colors = [];
@@ -27,7 +27,7 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
     const [summaryData, setSummaryData] = useState(null);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [selectedNode, setSelectedNode] = useState(null);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [isGrabbing, setIsGrabbing] = useState(false);
 
     useEffect(() => {
         const normalizedNodes = nodesData.map(n => ({ ...n, id: String(n.id) }));
@@ -169,7 +169,14 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
     };
 
     return (
-        <div className="flex flex-col md:flex-row h-full w-full">
+        <div
+            className={`flex flex-col md:flex-row h-full w-full ${
+                isGrabbing ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            onMouseDown={() => setIsGrabbing(true)}
+            onMouseUp={() => setIsGrabbing(false)}
+            onMouseLeave={() => setIsGrabbing(false)}
+        >
             {/* Graph Container */}
             <div
                 ref={networkContainerRef}
@@ -214,8 +221,10 @@ const Graph = ({ nodesData, edgesData, findPath, graphKey, reloadGraph, fullEdge
                         )}
                     </>
                 ) : (
-                    <div className="italic text-gray-500 text-sm">
-                        Select a node to start expanding the mind map and to see details.
+                    <div
+                        className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
+                        <strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then
+                        hit <em>“Expand”</em> to grow your mind map with related concepts.
                     </div>
                 )}
             </div>

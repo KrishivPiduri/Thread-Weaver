@@ -1,14 +1,9 @@
-'use client';
-
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import Graph from '../../components/Graph';
 import Overlay from '../../components/Overlay';
-import '@/app/globals.css';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
-
-
+import {useTopic} from "../../context/TopicContext";
 
 const Workspace = () => {
     const [isOverlayVisible, setIsOverlayVisible] = useState(false);
@@ -20,6 +15,7 @@ const Workspace = () => {
     const [selectedNodeId, setSelectedNodeId] = useState(null);
     const [fullNodesData, setFullNodesData] = useState([]);
     const [fullEdgesData, setFullEdgesData] = useState([]);
+    const [ topic ] = useTopic();
 
     function findPath(edges, targetId, rootId = 1, nodes = []) {
         const graph = {};
@@ -59,9 +55,6 @@ const Workspace = () => {
 
         return null;
     }
-
-    const searchParams = useSearchParams();
-    const topic = searchParams.get('topic');
 
     const toggleOverlay = () => {
         setIsOverlayVisible(prev => !prev);
