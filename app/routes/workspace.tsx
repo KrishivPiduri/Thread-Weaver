@@ -3,40 +3,57 @@ import Graph from '../../components/Graph';
 import Overlay from '../../components/Overlay';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
-import {useTopic} from "../../context/TopicContext";
+import { useTopic } from '../../context/TopicContext';
 
-const Workspace = () => {
-    const [isOverlayVisible, setIsOverlayVisible] = useState(false);
-    const [nodesData, setNodesData] = useState([]);
-    const [edgesData, setEdgesData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [key, setKey] = useState(''); // This will hold the generated or fetched key for the graph.
-    const [selectedNodeId, setSelectedNodeId] = useState(null);
-    const [fullNodesData, setFullNodesData] = useState([]);
-    const [fullEdgesData, setFullEdgesData] = useState([]);
-    const [ topic ] = useTopic();
+interface NodeType {
+    id: number | string;
+    label?: string;
+    [key: string]: any;
+}
 
-    function findPath(edges, targetId, rootId = 1, nodes = []) {
-        const graph = {};
-        const idToLabel = {};
+interface EdgeType {
+    from: number | string;
+    to: number | string;
+    [key: string]: any;
+}
+
+const Workspace: React.FC = () => {
+    const [isOverlayVisible, setIsOverlayVisible] = useState<boolean>(false);
+    const [nodesData, setNodesData] = useState<NodeType[]>([]);
+    const [edgesData, setEdgesData] = useState<EdgeType[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string>('');
+    const [key, setKey] = useState<string>(''); // This will hold the generated or fetched key for the graph.
+    const [selectedNodeId, setSelectedNodeId] = useState<string | number | null>(null);
+    const [fullNodesData, setFullNodesData] = useState<NodeType[]>([]);
+    const [fullEdgesData, setFullEdgesData] = useState<EdgeType[]>([]);
+    const [topic] = useTopic();
+
+    function findPath(
+        edges: EdgeType[],
+        targetId: number | string,
+        rootId: number | string = 1,
+        nodes: NodeType[] = []
+    ): string[] | null {
+        const graph: Record<string | number, (string | number)[]> = {};
+        const idToLabel: Record<string | number, string> = {};
 
         nodes.forEach(({ id, label }) => {
-            idToLabel[id] = label;
+            idToLabel[id] = label || String(id);
         });
 
         edges.forEach(({ from, to }) => {
             if (!graph[from]) graph[from] = [];
             if (!graph[to]) graph[to] = [];
             graph[from].push(to);
-            graph[to].push(from); // undirected graph
+            graph[to].push(from);
         });
 
-        const queue = [[rootId]];
-        const visited = new Set();
+        const queue: (string | number)[][] = [[rootId]];
+        const visited = new Set<string | number>();
 
         while (queue.length > 0) {
-            const path = queue.shift();
+            const path = queue.shift()!;
             const node = path[path.length - 1];
 
             if (node === targetId) {
@@ -57,41 +74,32 @@ const Workspace = () => {
     }
 
     const toggleOverlay = () => {
-        setIsOverlayVisible(prev => !prev);
+        setIsOverlayVisible((prev) => !prev);
     };
 
     useEffect(() => {
-
         const baseUrl = 'https://automindbucket.hackyourgrade.com/';
-        const sanitizeKey = (str) => str.replace(/\s+/g, '').toLowerCase();
+        const sanitizeKey = (str: string) => str.replace(/\s+/g, '').toLowerCase();
 
-        const startJob = async () => {
-            try {
-                const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ root_topic: topic }),
-                });
+        const startJob = async (): Promise<string> => {
+            const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ root_topic: topic }),
+            });
 
-                if (!response.ok) throw new Error('Failed to start mindmap generation');
-                const result = await response.json();
-                console.log('Mindmap job started:', result);
-
-                if (!result.s3_key) throw new Error('Missing s3_key in Lambda response');
-                return result.s3_key;
-            } catch (err) {
-                console.error('Error triggering Lambda:', err);
-                throw err;
-            }
+            if (!response.ok) throw new Error('Failed to start mindmap generation');
+            const result = await response.json();
+            if (!result.s3_key) throw new Error('Missing s3_key in Lambda response');
+            return result.s3_key;
         };
 
-        const pollForResult = async (filename) => {
+        const pollForResult = async (filename: string) => {
             const fileUrl = `${baseUrl}${filename}`;
-            const maxTimeout = 600000; // 10 minutes
-            const initialInterval = 2000; // 2 seconds
-            const maxInterval = 30000; // cap backoff at 30 seconds
+            const maxTimeout = 600000;
+            const initialInterval = 2000;
+            const maxInterval = 30000;
             const startTime = Date.now();
-
             let attempt = 0;
 
             while (Date.now() - startTime < maxTimeout) {
@@ -99,17 +107,12 @@ const Workspace = () => {
                     const res = await fetch(fileUrl, { cache: 'no-store' });
                     if (res.ok) {
                         const json = await res.json();
-                        // Only keep root node and its immediate neighbors
                         filterRootAndNeighbors(json.nodesData, json.edgesData);
                         return;
                     }
-                } catch (e) {
-                    // Log if needed: console.warn('Fetch attempt failed', e);
-                }
-
-                // Exponential backoff with cap
-                const delay = Math.min(initialInterval * (2 ** attempt), maxInterval);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                } catch {}
+                const delay = Math.min(initialInterval * 2 ** attempt, maxInterval);
+                await new Promise((resolve) => setTimeout(resolve, delay));
                 attempt++;
             }
 
@@ -126,22 +129,19 @@ const Workspace = () => {
             try {
                 setLoading(true);
 
-                var key = `${sanitizeKey(topic)}.json`; // Generate the key here
-                setKey(key); // Store the key for use later
-                const fileUrl = `${baseUrl}${key}`;
+                const sanitized = sanitizeKey(topic);
+                const defaultKey = `${sanitized}.json`;
+                setKey(defaultKey);
+                const fileUrl = `${baseUrl}${defaultKey}`;
 
-                // 🔍 Check if file already exists
                 const checkRes = await fetch(fileUrl, { method: 'HEAD', cache: 'no-store' });
 
                 if (checkRes.ok) {
-                    // File already exists — just poll and use it
-                    console.log('Mindmap already exists, skipping Lambda call.');
-                    await pollForResult(key);
+                    await pollForResult(defaultKey);
                 } else {
-                    // File doesn't exist — trigger Lambda and poll
                     const generatedKey = await startJob();
                     await pollForResult(generatedKey);
-                    setKey(generatedKey); // Set the new key
+                    setKey(generatedKey);
                 }
             } catch (err) {
                 console.error(err);
@@ -154,25 +154,22 @@ const Workspace = () => {
         fetchData();
     }, [topic]);
 
-    // Function to filter out root node and its immediate neighbors
-    const filterRootAndNeighbors = (nodes, edges) => {
-        setFullNodesData(nodes)
-        setFullEdgesData(edges)
-        // Find root node (assuming root node id = 1)
-        const rootNode = nodes.find((node) => node.id === 1);
-        if (!rootNode) return; // If no root node, return early
+    const filterRootAndNeighbors = (nodes: NodeType[], edges: EdgeType[]) => {
+        setFullNodesData(nodes);
+        setFullEdgesData(edges);
 
-        // Get all the neighbors of the root node
-        const neighbors = new Set();
-        edges.forEach(edge => {
+        const rootNode = nodes.find((node) => node.id === 1);
+        if (!rootNode) return;
+
+        const neighbors = new Set<number | string>();
+        edges.forEach((edge) => {
             if (edge.from === 1) neighbors.add(edge.to);
             if (edge.to === 1) neighbors.add(edge.from);
         });
 
-        // Filter nodes to only include the root node and its immediate neighbors
-        const filteredNodes = nodes.filter(node => node.id === 1 || neighbors.has(node.id));
+        const filteredNodes = nodes.filter((node) => node.id === 1 || neighbors.has(node.id));
         const filteredEdges = edges.filter(
-            edge => neighbors.has(edge.from) || neighbors.has(edge.to)
+            (edge) => neighbors.has(edge.from) || neighbors.has(edge.to)
         );
 
         setNodesData(filteredNodes);
@@ -182,29 +179,26 @@ const Workspace = () => {
     const reloadGraph = async () => {
         try {
             const fileUrl = `https://automindbucket.hackyourgrade.com/${key}`;
-            const res     = await fetch(fileUrl, { cache: 'no-store' });
+            const res = await fetch(fileUrl, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to reload graph');
             const json = await res.json();
 
-            // Update full references
             setFullNodesData(json.nodesData);
             setFullEdgesData(json.edgesData);
 
-            // Merge new nodes
-            setNodesData(current => {
-                const have = new Set(current.map(n => String(n.id)));
-                const add  = json.nodesData
-                    .filter(n => !have.has(String(n.id)))
-                    .map(n => ({ ...n, id: String(n.id) }));
+            setNodesData((current) => {
+                const have = new Set(current.map((n) => String(n.id)));
+                const add = json.nodesData
+                    .filter((n: NodeType) => !have.has(String(n.id)))
+                    .map((n: NodeType) => ({ ...n, id: String(n.id) }));
                 return [...current, ...add];
             });
 
-            // Merge new edges
-            setEdgesData(current => {
-                const haveEdge = new Set(current.map(e => `${e.from}->${e.to}`));
+            setEdgesData((current) => {
+                const haveEdge = new Set(current.map((e) => `${e.from}->${e.to}`));
                 const addEdge = json.edgesData
-                    .filter(e => !haveEdge.has(`${e.from}->${e.to}`))
-                    .map(e => ({ from: String(e.from), to: String(e.to) }));
+                    .filter((e: EdgeType) => !haveEdge.has(`${e.from}->${e.to}`))
+                    .map((e: EdgeType) => ({ from: String(e.from), to: String(e.to) }));
                 return [...current, ...addEdge];
             });
         } catch (err) {
@@ -212,31 +206,29 @@ const Workspace = () => {
         }
     };
 
-    // inside Workspace component, alongside reloadGraph:
-    const handleLocalExpand = (nodeId, missingNeighborIds) => {
-        // 1) pull just those nodes & edges out of the “full” sets
+    const handleLocalExpand = (nodeId: number | string, missingNeighborIds: string[]) => {
         const newNodes = fullNodesData
-            .filter(n => missingNeighborIds.includes(String(n.id)))
-            .map(n => ({
+            .filter((n) => missingNeighborIds.includes(String(n.id)))
+            .map((n) => ({
                 ...n,
                 id: String(n.id),
                 label: n.label || String(n.id),
             }));
 
-        // 2) merge into the existing state
-        setNodesData(nd => [...nd, ...newNodes]);
+        setNodesData((nd) => [...nd, ...newNodes]);
     };
 
     return (
         <div className="flex flex-col h-screen p-4">
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4"/>
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4" />
                     <p className="text-lg font-medium text-gray-700">
                         Generating graph for "<span className="font-semibold text-blue-600">{topic}</span>"...
                     </p>
                     <p className="mt-2 text-base text-gray-600 max-w-md">
-                        This will take a few minutes depending on the size of the map.<br/>
+                        This will take a few minutes depending on the size of the map.
+                        <br />
                         <span className="font-bold text-red-600">DO NOT RELOAD!</span> Just trust the process.
                     </p>
                 </div>
@@ -248,7 +240,7 @@ const Workspace = () => {
                 <Graph
                     nodesData={nodesData}
                     edgesData={edgesData}
-                    graphKey={key} // Pass the key here to the Graph component
+                    graphKey={key}
                     reloadGraph={reloadGraph}
                     selectedNodeId={selectedNodeId}
                     onLocalExpand={handleLocalExpand}
@@ -257,15 +249,17 @@ const Workspace = () => {
                     fullEdgesData={fullEdgesData}
                 />
             )}
-            {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
+            {isOverlayVisible && <Overlay onClose={toggleOverlay} />}
         </div>
     );
 };
 
-export default function WorkspacePage() {
+const WorkspacePage: React.FC = () => {
     return (
         <Suspense fallback={<div className="p-4 text-center">Loading workspace...</div>}>
             <Workspace />
         </Suspense>
     );
-}
+};
+
+export default WorkspacePage;
