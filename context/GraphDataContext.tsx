@@ -1,3 +1,4 @@
+// GraphDataContext.tsx
 import React, { createContext, useContext, useState } from 'react';
 
 export type Node = {
@@ -15,6 +16,8 @@ type GraphDataContextType = {
     edgesData: Edge[];
     setNodesData: React.Dispatch<React.SetStateAction<Node[]>>;
     setEdgesData: React.Dispatch<React.SetStateAction<Edge[]>>;
+    graphKey: string;
+    setGraphKey: React.Dispatch<React.SetStateAction<string>>;
 };
 
 const GraphDataContext = createContext<GraphDataContextType | undefined>(undefined);
@@ -28,10 +31,18 @@ export const useGraphData = (): GraphDataContextType => {
 export const GraphDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [nodesData, setNodesData] = useState<Node[]>([]);
     const [edgesData, setEdgesData] = useState<Edge[]>([]);
+    const [graphKey, setGraphKey] = useState<string>(''); // <- new
 
     return (
-        <GraphDataContext.Provider value={{ nodesData, setNodesData, edgesData, setEdgesData }}>
-    {children}
-    </GraphDataContext.Provider>
-);
+        <GraphDataContext.Provider value={{
+            nodesData,
+            setNodesData,
+            edgesData,
+            setEdgesData,
+            graphKey,
+            setGraphKey
+        }}>
+            {children}
+        </GraphDataContext.Provider>
+    );
 };

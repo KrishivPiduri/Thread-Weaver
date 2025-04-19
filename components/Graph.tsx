@@ -6,6 +6,9 @@ import louvain from 'graphology-communities-louvain';
 import { Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useGraphData } from '../context/GraphDataContext';
+import {doc, updateDoc} from "firebase/firestore";
+import {db} from "../firebase";
+
 
 
 type Node = {
@@ -39,9 +42,8 @@ const generateDistinctColors = (n: number): string[] => {
 
 const Graph: React.FC<GraphProps> = ({
                                          findPath,
-                                         graphKey,
                                      }) => {
-    const { nodesData, setNodesData, edgesData, setEdgesData } = useGraphData();
+    const { nodesData, setNodesData, edgesData, setEdgesData, graphKey } = useGraphData();
     const networkContainerRef = useRef<HTMLDivElement | null>(null);
     const networkRef = useRef<Network | null>(null);
     const nodesRef = useRef<DataSet<any> | null>(null);
@@ -214,7 +216,7 @@ const Graph: React.FC<GraphProps> = ({
                 id: name,
                 label: name,
             }));
-
+            // TODO: The `to` property of new edges is not being set correctly. It needs to be an ID.
             const newEdges = newNodeNames.map((name) => ({
                 from: selectedNode,
                 to: name,
@@ -222,6 +224,16 @@ const Graph: React.FC<GraphProps> = ({
 
             setNodesData((prev) => [...prev, ...newNodes]);
             setEdgesData((prev) => [...prev, ...newEdges]);
+            console.log('Graph key:', graphKey);
+            try {
+                const ref = doc(db, 'mindmaps', graphKey);
+                await updateDoc(ref, {
+                    nodesData: [...nodesData, ...newNodes],
+                    edgesData: [...edgesData, ...newEdges]
+                });
+            } catch (err) {
+                console.error('Firestore update error:', err);
+            }
 
         } catch (err) {
             console.error("Expand failed:", err);
