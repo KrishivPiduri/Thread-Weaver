@@ -2,10 +2,11 @@ import React, {type ChangeEvent, useEffect, useState} from 'react';
 import {useGraphData} from "../../context/GraphDataContext";
 import { useTopic } from '../../context/TopicContext';
 import {Link} from "react-router";
-import {addDoc, collection, doc, getDoc, getDocs, query, Timestamp, where} from "firebase/firestore";
+import {addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, Timestamp, where} from "firebase/firestore";
 import {db} from "../../firebase";
 import {useAuth} from "../../context/AuthContext";
 import {useNavigate} from "react-router-dom";
+
 
 const HomePage: React.FC = () => {
     const [topic, setTopic] = useTopic();
@@ -14,7 +15,14 @@ const HomePage: React.FC = () => {
     const { user } = useAuth();
     const [userGraphs, setUserGraphs] = useState<any[]>([]);
     const navigate = useNavigate();
-
+    const handleDeleteGraph = async (graphId: string) => {
+        try {
+            await deleteDoc(doc(db, 'mindmaps', graphId));
+            setUserGraphs(prev => prev.filter(graph => graph.id !== graphId));
+        } catch (err) {
+            console.error('Error deleting graph:', err);
+        }
+    };
     const handleGraphSelect = async (graphId: string) => {
         try {
             const ref = doc(db, 'mindmaps', graphId);
@@ -146,13 +154,23 @@ const HomePage: React.FC = () => {
                         {userGraphs.map((graph) => (
                             <li
                                 key={graph.id}
-                                className="bg-white p-4 rounded-lg shadow hover:shadow-md border border-gray-200 cursor-pointer transition duration-150 hover:bg-gray-50"
-                                onClick={() => handleGraphSelect(graph.id)}
+                                className="bg-white p-4 rounded-lg shadow border border-gray-200 transition duration-150 hover:bg-gray-50"
                             >
-                                <div className="font-medium text-gray-800">{graph.topic || 'Untitled Topic'}</div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Created {graph.createdAt?.toDate().toLocaleString()}
+                                <div
+                                    className="cursor-pointer"
+                                    onClick={() => handleGraphSelect(graph.id)}
+                                >
+                                    <div className="font-medium text-gray-800">{graph.topic || 'Untitled Topic'}</div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        Created {graph.createdAt?.toDate().toLocaleString()}
+                                    </div>
                                 </div>
+                                <button
+                                    onClick={() => handleDeleteGraph(graph.id)}
+                                    className="mt-2 text-red-500 text-sm hover:underline cursor-pointer"
+                                >
+                                    Delete
+                                </button>
                             </li>
                         ))}
                     </ul>
