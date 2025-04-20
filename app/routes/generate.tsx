@@ -50,10 +50,12 @@ const HomePage: React.FC = () => {
 
     useEffect(() => {
         const fetchUserGraphs = async () => {
+            // @ts-ignore
             if (!user.uid) return;
 
             try {
                 console.log(user);
+                // @ts-ignore
                 const q = query(collection(db, 'mindmaps'), where('createdBy', '==', user.uid));
                 const snapshot = await getDocs(q);
                 const graphs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -65,6 +67,7 @@ const HomePage: React.FC = () => {
 
         fetchUserGraphs();
     }, [user]);
+
 
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +97,7 @@ const HomePage: React.FC = () => {
                 setEdgesData(result.edgesData);
 
                 // Save to Firestore
+                // @ts-ignore
                 const docRef = await addDoc(collection(db, 'mindmaps'), {
                     topic,
                     nodesData: result.nodesData,
@@ -139,7 +143,7 @@ const HomePage: React.FC = () => {
                 <Link to="/workspace">
                     <button
                         type="button"
-                        className="w-full py-3 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600 transition duration-200"
+                        className="w-full py-3 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600 transition duration-200 cursor-pointer"
                         onClick={handleGenerate}
                     >
                         Generate Mind Map

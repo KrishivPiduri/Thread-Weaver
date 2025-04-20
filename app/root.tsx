@@ -36,7 +36,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Auto Mind</title>
-        <Meta />
+          {/*
+          <script async src="https://www.googletagmanager.com/gtag/js?id=G-VW77CSJRBW"></script>
+          <script>
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments)}
+              gtag('js', new Date());
+
+              gtag('config', 'G-VW77CSJRBW');
+          </script>*/}
+          <Meta/>
         <Links />
       </head>
       <body>

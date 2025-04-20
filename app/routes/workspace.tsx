@@ -4,7 +4,7 @@ import Overlay from '../../components/Overlay';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
 import { useTopic } from '../../context/TopicContext';
-import {useGraphData} from "../../context/GraphDataContext";
+import {Link} from "react-router";
 
 interface NodeType {
     id: number | string;
@@ -22,7 +22,6 @@ const Workspace: React.FC = () => {
     const [isOverlayVisible, setIsOverlayVisible] = useState<boolean>(false);
     const [loading] = useState<boolean>(false);
     const [topic] = useTopic();
-    const { setNodesData, setEdgesData } = useGraphData();
 
     function findPath(
         edges: EdgeType[],
@@ -74,15 +73,22 @@ const Workspace: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen p-4">
+            <Link to='/generate'>
+                <button
+                    className="absolute top-4 left-4 z-50 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-md hover:bg-indigo-700 transition"
+                >
+                    ← Back to Generate
+                </button>
+            </Link>
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4" />
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4"/>
                     <p className="text-lg font-medium text-gray-700">
                         Generating graph for "<span className="font-semibold text-blue-600">{topic}</span>"...
                     </p>
                     <p className="mt-2 text-base text-gray-600 max-w-md">
                         This will take a few minutes depending on the size of the map.
-                        <br />
+                        <br/>
                         <span className="font-bold text-red-600">DO NOT RELOAD!</span> Just trust the process.
                     </p>
                 </div>
@@ -91,7 +97,7 @@ const Workspace: React.FC = () => {
                     findPath={findPath}
                 />
             )}
-            {isOverlayVisible && <Overlay onClose={toggleOverlay} />}
+            {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
         </div>
     );
 };
@@ -99,7 +105,7 @@ const Workspace: React.FC = () => {
 const WorkspacePage: React.FC = () => {
     return (
         <Suspense fallback={<div className="p-4 text-center">Loading workspace...</div>}>
-            <Workspace />
+            <Workspace/>
         </Suspense>
     );
 };
