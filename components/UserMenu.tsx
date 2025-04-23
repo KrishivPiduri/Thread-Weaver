@@ -13,7 +13,7 @@ export default function UserMenu({ user, onLogout }) {
     };
 
     return (
-        <div className="absolute top-0 right-4 bg-white shadow-md px-4 py-2 rounded-lg flex items-center space-x-3 z-20">
+        <div className="absolute top-0 right-4 bg-white shadow-md px-4 py-2 rounded-lg flex items-center space-x-3 z-20 mt-10">
             <img
                 src={user.photoURL}
                 alt="User Avatar"

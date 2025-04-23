@@ -98,6 +98,8 @@ const HomePage: React.FC = () => {
 
                 // Save to Firestore
                 // @ts-ignore
+                if (!user.uid) return;
+
                 const docRef = await addDoc(collection(db, 'mindmaps'), {
                     topic,
                     nodesData: result.nodesData,
@@ -117,6 +119,24 @@ const HomePage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+            <nav
+                className="fixed top-0 left-0 w-full bg-white shadow-md py-4 px-6 flex justify-between items-center z-10">
+                <Link to="/generate">
+                    <div className="text-xl font-bold text-green-600">
+                        AutoMind
+                    </div>
+                </Link>
+                <div className="space-x-6">
+                    <Link to="https://www.hackyourgrade.com"
+                          className="text-gray-700 hover:text-green-600 font-medium transition">
+                        Feynman Helper
+                    </Link>
+                    <Link to="https://weakspot.hackyourgrade.com"
+                          className="text-gray-700 hover:text-green-600 font-medium transition">
+                        FlixAI
+                    </Link>
+                </div>
+            </nav>
             <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
                 <h1 className="text-3xl font-bold text-center text-gray-800 mb-4">
                     AutoMind

@@ -74,17 +74,17 @@ export default function App() {
 function AppWrapper() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const isPublic = location.pathname === "/" || location.pathname === "/login";
+  const isPublic = location.pathname === "/generate";
 
   if (loading) return null;
 
-  if (!user && !isPublic) {
+  if (!user && isPublic) {
     return <Navigate to="/login" replace />;
   }
 
   return (
       <>
-        {!isPublic && user && <UserMenu user={user} onLogout={() => {}} />}
+        {isPublic && user && <UserMenu user={user} onLogout={() => {}} />}
         <Outlet />
       </>
   );

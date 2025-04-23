@@ -73,13 +73,23 @@ const Workspace: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen p-4">
-            <Link to='/generate'>
-                <button
-                    className="absolute top-4 left-4 z-50 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-md hover:bg-indigo-700 transition"
-                >
-                    ← Back to Generate
-                </button>
-            </Link>
+            <nav
+                className="fixed top-0 left-0 w-full bg-white shadow-md py-4 px-6 flex justify-between items-center z-10">
+                <Link to="/generate">
+                    <div className="text-xl font-bold text-green-600">
+                        AutoMind
+                    </div>
+                </Link>
+                <div className="space-x-6">
+                    <Link to="https://www.hackyourgrade.com"
+                          className="text-gray-700 hover:text-green-600 font-medium transition">
+                        Feynman Helper
+                    </Link>
+                    <Link to="https://weakspot.hackyourgrade.com" className="text-gray-700 hover:text-green-600 font-medium transition">
+                        FlixAI
+                    </Link>
+                </div>
+            </nav>
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 border-solid mb-4"/>

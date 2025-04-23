@@ -71,7 +71,17 @@ const Graph: React.FC<GraphProps> = ({
         // @ts-ignore
         const g = new Graphology({ type: 'undirected', multi: true });
         // @ts-ignore
-        normalizedNodes.forEach((node) => node.id && g.addNode(node.id));
+        normalizedNodes.forEach((node) => {
+            const id = String(node.id);
+
+            if (!id || g.hasNode(id)) {
+                console.warn('Skipped adding invalid or duplicate node:', node);
+                return;
+            }
+
+            g.addNode(id);
+        });
+
         normalizedEdges.forEach((edge) => {
             const key = `${edge.from}->${edge.to}`;
             // @ts-ignore
@@ -216,14 +226,24 @@ const Graph: React.FC<GraphProps> = ({
                 id: name,
                 label: name,
             }));
-            // TODO: The `to` property of new edges is not being set correctly. It needs to be an ID.
+
             const newEdges = newNodeNames.map((name) => ({
                 from: selectedNode,
                 to: name,
             }));
 
-            setNodesData((prev) => [...prev, ...newNodes]);
-            setEdgesData((prev) => [...prev, ...newEdges]);
+// Filter out duplicates
+            setNodesData((prev) => {
+                const existingIds = new Set(prev.map((node) => node.id));
+                const filteredNewNodes = newNodes.filter((node) => !existingIds.has(node.id));
+                return [...prev, ...filteredNewNodes];
+            });
+
+            setEdgesData((prev) => {
+                const existingEdgeSet = new Set(prev.map((e) => `${e.from}->${e.to}`));
+                const filteredNewEdges = newEdges.filter((e) => !existingEdgeSet.has(`${e.from}->${e.to}`));
+                return [...prev, ...filteredNewEdges];
+            });
             console.log('Graph key:', graphKey);
             try {
                 const ref = doc(db, 'mindmaps', graphKey);

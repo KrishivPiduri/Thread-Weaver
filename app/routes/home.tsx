@@ -1,103 +1,107 @@
-import type { Route } from "./+types/home";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import {addDoc, collection, Timestamp} from "firebase/firestore";
+import {db} from "../../firebase";
+import {Link} from "react-router";
+import {useTopic} from "../../context/TopicContext";
+import {useGraphData} from "../../context/GraphDataContext";
+import {useAuth} from "../../context/AuthContext";
+import {useNavigate} from "react-router-dom";
 
-export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "Explore Any Topic Visually" },
-    { name: "description", content: "Take a self-guided tour through any topic with interactive visual mind maps." },
-  ];
-}
+const rotatingTopics = [
+  "Machine Learning",
+  "Quantum Computing",
+  "World War 2",
+  "Stoic Philosophy",
+  "The Renaissance",
+  "Black Holes",
+  "Game Theory",
+];
 
-export default function LandingPage() {
+export default function HeroStarfield() {
+  const [topic, setTopic] = useTopic();
+  const { setNodesData, setEdgesData } = useGraphData();
+  const { setGraphKey } = useGraphData();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [placeholder, setPlaceholder] = useState(rotatingTopics[0]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholder((prev) => {
+        const currentIndex = rotatingTopics.indexOf(prev);
+        return rotatingTopics[(currentIndex + 1) % rotatingTopics.length];
+      });
+    }, 2000); // every 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+  const handleGenerate = () => {
+    const fetchData = async () => {
+      if (!topic) return;
+
+      try {
+        const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ root_topic: topic }),
+        });
+
+        if (!response.ok) throw new Error('Failed to generate mindmap');
+
+        const result = await response.json();
+
+        if (!result.nodesData || !result.edgesData) {
+          throw new Error('Invalid response: missing nodes or edges data');
+        }
+
+        setNodesData(result.nodesData);
+        setEdgesData(result.edgesData);
+        navigate('/workspace'); // Navigate to the workspace page
+        if (!user.uid) return;
+        // Save to Firestore
+        // @ts-ignore
+        const docRef = await addDoc(collection(db, 'mindmaps'), {
+          topic,
+          nodesData: result.nodesData,
+          edgesData: result.edgesData,
+          createdAt: Timestamp.now(),
+          createdBy: user ? user.uid : 'anonymous',
+        });
+
+        setGraphKey(docRef.id); // <- Store the key for later use
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchData();
+  };
+
   return (
-      <div className="w-full overflow-x-hidden text-gray-800">
-        {/* Hero Section */}
-        <section className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white py-24 px-6 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">Take a Self-Guided Tour Through Any Topic</h1>
-          <p className="text-lg md:text-xl max-w-2xl mx-auto">
-            Whether you're diving into history, science, or any subject in between — explore, discover, and learn through interactive mind maps built just for you.
-          </p>
-          <Link to="/generate">
-          <span className="mt-8 px-6 py-3 text-lg font-semibold bg-white text-indigo-700 hover:bg-gray-100 rounded-md inline-block">
-            Begin Your Tour →
-          </span>
-          </Link>
-        </section>
+      <section className="relative w-full h-screen flex items-center justify-center bg-black overflow-hidden text-white">
+        {/* Starfield background */}
+        <div className="absolute inset-0 z-0">
+          <div className="w-full h-full bg-[radial-gradient(circle,_#ffffff11,_transparent)] blur-sm animate-pulse" />
+        </div>
 
-        {/* How It Works */}
-        <section className="py-20 px-6 bg-white">
-          <div className="max-w-5xl mx-auto">
-            <h2 className="text-3xl font-bold mb-12 text-center">How Your Tour Works</h2>
-
-            <div className="grid md:grid-cols-2 gap-12">
-              <div>
-                <h3 className="text-xl font-semibold mb-2">🔍 Choose a Topic</h3>
-                <p>
-                  Start your journey by entering a topic you're curious about — anything from the Renaissance to quantum mechanics.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-semibold mb-2">🗺️ Get Your Map</h3>
-                <p>
-                  Instantly receive a personalized visual map, breaking the topic down into key concepts, themes, and connections.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-semibold mb-2">🧭 Navigate Deeper</h3>
-                <p>
-                  Click on nodes to dive deeper, uncovering layers of detail and insights as you explore at your own pace.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-semibold mb-2">🎓 Learn by Exploring</h3>
-                <p>
-                  This isn't studying — it's an adventure. Visualize knowledge, connect ideas, and absorb information naturally.
-                </p>
-              </div>
-            </div>
+        {/* Overlay content */}
+        <div className="relative z-10 text-center px-4 max-w-3xl">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6">Take a Self-Guided Tour Through Any Topic</h1>
+          <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
+            <input
+                className="flex-1 min-w-[280px] px-6 py-3 text-lg text-white rounded-md outline-none shadow-lg border-[1px] border-white bg-transparent placeholder-white/60 focus:border-2"
+                type="text"
+                placeholder={placeholder}
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+            />
+            <Link to="/workspace">
+            <button className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer" onClick={handleGenerate}>
+              Try it →
+            </button>
+            </Link>
           </div>
-        </section>
-
-        {/* Use Cases */}
-        <section className="py-20 px-6 bg-gray-50">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl font-bold mb-10">Who It's For</h2>
-            <ul className="grid md:grid-cols-3 gap-6 text-left text-lg font-medium">
-              <li>🎒 Curious learners charting their own path</li>
-              <li>🧠 Students prepping for exams or deep dives</li>
-              <li>🗂️ Professionals unpacking complex topics</li>
-              <li>🧑‍🏫 Educators building visual lesson journeys</li>
-              <li>🔍 Researchers making sense of big ideas</li>
-              <li>🌐 Anyone who learns by seeing and exploring</li>
-            </ul>
-          </div>
-        </section>
-
-        {/* Call to Action */}
-        <section className="py-24 px-6 bg-indigo-100 text-center">
-          <h2 className="text-3xl font-bold mb-4">Start Your Tour Today</h2>
-          <p className="text-lg mb-6">
-            Generate interactive maps that guide you through any subject — one idea at a time.
-          </p>
-          <Link to="/generate">
-          <span className="text-lg px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-md inline-block">
-            Explore a Topic
-          </span>
-          </Link>
-        </section>
-
-        {/* Footer */}
-        <footer className="bg-gray-100 text-gray-600 text-sm text-center py-6 border-t">
-          <p>
-            Created by <a href="https://krishivpiduri.com" target="_blank"
-                          className="text-indigo-600 hover:underline">Krishiv</a> and <a
-              href="https://www.linkedin.com/in/deepika-nathany-a5a96638/" target="_blank"
-              className="text-indigo-600 hover:underline">Deepika</a> • © {new Date().getFullYear()}
-          </p>
-        </footer>
-      </div>
+        </div>
+      </section>
   );
 }
