@@ -272,7 +272,7 @@ const Graph: React.FC<GraphProps> = ({
         >
             <div
                 ref={networkContainerRef}
-                className="flex-grow md:basis-2/3 min-h-[300px] h-full md:h-auto overflow-hidden"
+                className="flex-grow md:basis-2/3 min-h-[300px] h-full md:h-auto overflow-hidden bg-white"
             />
 
             <div className="md:flex-shrink md:basis-1/3 w-full bg-white p-4 border-l overflow-auto">
@@ -287,9 +287,9 @@ const Graph: React.FC<GraphProps> = ({
                 {isSummaryLoading ? (
                     <div className="text-center text-gray-600">Loading summary...</div>
                 ) : summaryData ? (
-                    <>
-                        <h3 className="font-medium mb-2">Node {summaryData.node}</h3>
-                        <p className="text-sm whitespace-pre-wrap mb-2">{summaryData.summary}</p>
+                    <div className='bg-white'>
+                        <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
+                        <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
                         <div className="text-xs text-gray-500 mb-4">
                             <strong>Path:</strong> {summaryData.path.join(' → ')}
                         </div>
@@ -302,7 +302,7 @@ const Graph: React.FC<GraphProps> = ({
                         >
                             {isLoading ? 'Expanding...' : 'Expand'}
                         </button>
-                    </>
+                    </div>
                 ) : (
                     <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
                         <strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then hit <em>“Expand”</em> to grow your mind map with related concepts.
