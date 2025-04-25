@@ -4,5 +4,6 @@ export default [
     index("routes/home.tsx"),
     route("/login", "routes/login.tsx"),
     route("/generate", "routes/generate.tsx"),
-    route("/workspace", "routes/workspace.tsx"),
+    route("/workspace/:id", "routes/workspace.tsx"),
+    route("/embed/:id", "routes/embed.tsx"),
 ] satisfies RouteConfig;

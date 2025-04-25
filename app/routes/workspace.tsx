@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import {useEffect, useState} from 'react';
 import Graph from '../../components/Graph';
 import Overlay from '../../components/Overlay';
 import 'vis-network/styles/vis-network.css';
 import React, { Suspense } from 'react';
 import { useTopic } from '../../context/TopicContext';
 import {Link} from "react-router";
+import {useParams} from "react-router-dom";
+import {useGraphData} from "../../context/GraphDataContext";
 
 interface NodeType {
     id: number | string;
@@ -19,9 +21,15 @@ interface EdgeType {
 }
 
 const Workspace: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
     const [isOverlayVisible, setIsOverlayVisible] = useState<boolean>(false);
     const [loading] = useState<boolean>(false);
     const [topic] = useTopic();
+    const {setGraphKey}=useGraphData();
+    useEffect(() => {
+        // @ts-ignore
+        setGraphKey(id);
+    }, []);
 
     function findPath(
         edges: EdgeType[],
