@@ -1,7 +1,7 @@
 import React, {type ChangeEvent, useEffect, useState} from 'react';
 import {useGraphData} from "../../context/GraphDataContext";
 import { useTopic } from '../../context/TopicContext';
-import {Link} from "react-router";
+import {Link} from "react-router-dom";
 import {addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, Timestamp, where} from "firebase/firestore";
 import {db} from "../../firebase";
 import {useAuth} from "../../context/AuthContext";

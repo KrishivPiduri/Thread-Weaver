@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {addDoc, collection, Timestamp} from "firebase/firestore";
 import {db} from "../../firebase";
-import {Link} from "react-router";
 import {useTopic} from "../../context/TopicContext";
 import {useGraphData} from "../../context/GraphDataContext";
 import {useAuth} from "../../context/AuthContext";
@@ -56,19 +55,19 @@ export default function HeroStarfield() {
 
         setNodesData(result.nodesData);
         setEdgesData(result.edgesData);
-        navigate('/workspace'); // Navigate to the workspace page
-        if (!user.uid) return;
-        // Save to Firestore
-        // @ts-ignore
+
+        if (!user?.uid) return;
+
         const docRef = await addDoc(collection(db, 'mindmaps'), {
           topic,
           nodesData: result.nodesData,
           edgesData: result.edgesData,
           createdAt: Timestamp.now(),
-          createdBy: user ? user.uid : 'anonymous',
+          createdBy: user.uid,
         });
 
-        setGraphKey(docRef.id); // <- Store the key for later use
+        setGraphKey(docRef.id);
+        navigate(`/workspace/${docRef.id}`); // <- Correct dynamic redirect
       } catch (err) {
         console.error(err);
       }
@@ -95,11 +94,12 @@ export default function HeroStarfield() {
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
             />
-            <Link to="/workspace">
-            <button className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer" onClick={handleGenerate}>
+            <button
+                className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer"
+                onClick={handleGenerate}
+            >
               Try it →
             </button>
-            </Link>
           </div>
         </div>
       </section>
