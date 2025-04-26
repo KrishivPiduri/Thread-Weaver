@@ -43,7 +43,7 @@ const HomePage: React.FC = () => {
             setGraphKey(graphId);
             setTopic(data.topic || '');
 
-            navigate('/workspace/' + graphId);
+            navigate('/embed/' + graphId);
         } catch (err) {
             console.error('Error loading graph:', err);
         }
@@ -110,7 +110,7 @@ const HomePage: React.FC = () => {
             });
 
             setGraphKey(docRef.id);
-            navigate(`/workspace/${docRef.id}`);
+            navigate(`/embed/${docRef.id}`);
         } catch (err) {
             console.error(err);
         } finally {

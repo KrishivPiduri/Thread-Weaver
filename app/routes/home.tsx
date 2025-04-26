@@ -67,7 +67,7 @@ export default function HeroStarfield() {
         });
 
         setGraphKey(docRef.id);
-        navigate(`/workspace/${docRef.id}`); // <- Correct dynamic redirect
+        navigate(`/embed/${docRef.id}`); // <- Correct dynamic redirect
       } catch (err) {
         console.error(err);
       }
