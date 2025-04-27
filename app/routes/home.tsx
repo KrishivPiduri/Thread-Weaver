@@ -57,15 +57,12 @@ export default function HeroStarfield() {
       setNodesData(result.nodesData);
       setEdgesData(result.edgesData);
 
-      // @ts-ignore
-      if (!user.uid) return;
-
       const docRef = await addDoc(collection(db, 'mindmaps'), {
         topic,
         nodesData: result.nodesData,
         edgesData: result.edgesData,
         createdAt: Timestamp.now(),
-        createdBy: user.uid,
+        createdBy: user ? user.uid : "guest",
       });
 
       setGraphKey(docRef.id);
@@ -94,6 +91,11 @@ export default function HeroStarfield() {
                 placeholder={placeholder}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleGenerate();
+                  }
+                }}
             />
             <button
                 className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer"
