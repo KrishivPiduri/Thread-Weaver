@@ -8,8 +8,7 @@ import { Link } from 'react-router-dom';
 import { useGraphData } from '../context/GraphDataContext';
 import {doc, updateDoc} from "firebase/firestore";
 import {db} from "../firebase";
-
-
+import innerText from "react-innertext"
 
 type Node = {
     id: string | number;
@@ -48,6 +47,7 @@ const Graph: React.FC<GraphProps> = ({
     const networkRef = useRef<Network | null>(null);
     const nodesRef = useRef<DataSet<any> | null>(null);
     const edgesRef = useRef<DataSet<any> | null>(null);
+	const editRef = useRef(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -58,6 +58,7 @@ const Graph: React.FC<GraphProps> = ({
     } | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isGrabbing, setIsGrabbing] = useState(false);
+	const changedLabels = useRef({});
 
     useEffect(() => {
         const normalizedNodes = nodesData.map((n) => ({ ...n, id: String(n.id) }));
@@ -101,10 +102,11 @@ const Graph: React.FC<GraphProps> = ({
                 communityColors[cid] = palette[idx % palette.length];
             }
         });
-
+		console.log(normalizedNodes, nodesData)
         const styledNodes = normalizedNodes.map((node) => ({
             ...node,
             label: node.label || node.id,
+			sublabel: node.sublabel || node.label || node.id,
             color: {
                 background: node.id === '1' ? '#FFD700' : communityColors[communityMap[node.id]],
                 border: node.id === '1' ? '#FF8C00' : '#333333',
@@ -161,6 +163,19 @@ const Graph: React.FC<GraphProps> = ({
             });
         });
 
+		networkRef.current.on("oncontext", ({nodes, event, pointer}) => {
+			console.log("pain perdue")
+			event.preventDefault();
+			const priorSel = selectedNode
+			const net = networkRef.current
+			net.unselectAll()
+			console.log(pointer)
+			net.selectNodes([net.getNodeAt(pointer.DOM)])
+			net?.deleteSelected();
+			net.unselectAll()
+			net.selectNodes([selectedNode])
+		})
+
         return () => networkRef.current?.destroy();
     }, [nodesData, edgesData, findPath]);
 
@@ -175,8 +190,10 @@ const Graph: React.FC<GraphProps> = ({
         });
 
         const nodeIdToLabel: Record<string, string> = {};
-        nodesData.forEach(({ id, label }) => {
+		const nodeIdToSublabel: Record<string, string> = {};
+        nodesData.forEach(({ id, label, sublabel }) => {
             nodeIdToLabel[String(id)] = label || String(id);
+			nodeIdToSublabel[String(id)] = sublabel || nodeIdToLabel[String(id)]
         });
 
         const path = findPath(edgesRef.current!.get(), selectedNode);
@@ -206,7 +223,7 @@ const Graph: React.FC<GraphProps> = ({
         setIsLoading(true);
 
         try {
-            const topicPath = summaryData.path.join(" > ");
+            const topicPath = summaryData.path.slice(0,-1).map(a=>a+" > ") + getNodeById(selectedNode).sublabel;
             const url = new URL("https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand");
             url.searchParams.set("topic_path", topicPath);
             url.searchParams.set("expand_node_id", selectedNode);
@@ -254,7 +271,6 @@ const Graph: React.FC<GraphProps> = ({
             } catch (err) {
                 console.error('Firestore update error:', err);
             }
-
         } catch (err) {
             console.error("Expand failed:", err);
         } finally {
@@ -262,6 +278,18 @@ const Graph: React.FC<GraphProps> = ({
         }
     };
 
+	const getNodeById = (id: string)=>{
+		return nodesData.find(a=>String(a.id) == id);
+	}
+
+	const handleEdit = ()=>{
+		console.log("rab")
+		const label = editRef.current.innerText
+		console.log([label, Number(selectedNode)])
+		networkRef.current.updateClusteredNode(selectedNode, {"label": label})
+		console.log(nodesData, nodesData[Number(selectedNode)-1])
+		getNodeById(selectedNode).label = label
+	}
 
     return (
         <div
@@ -291,7 +319,10 @@ const Graph: React.FC<GraphProps> = ({
                         <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
                         <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
                         <div className="text-xs text-gray-500 mb-4">
-                            <strong>Path:</strong> {summaryData.path.join(' → ')}
+                            <strong>Path:</strong> {summaryData.path.slice(0,-1).map(a=>a+' → ')} 
+							<div onBlur={handleEdit} className="" suppressContentEditableWarning={true} contentEditable role="textbox">
+								<span ref={editRef}>{summaryData.path.at(-1)}</span>
+							</div>
                         </div>
                         <button
                             onClick={handleExpand}
@@ -302,12 +333,21 @@ const Graph: React.FC<GraphProps> = ({
                         >
                             {isLoading ? 'Expanding...' : 'Expand'}
                         </button>
+
                     </div>
-                ) : (
-                    <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
-                        <strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then hit <em>“Expand”</em> to grow your mind map with related concepts.
-                    </div>
-                )}
+				) : (
+					<>
+						<div className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
+							<strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then hit <em>“Expand”</em> to grow your mind map with related concepts.
+						</div>
+						<div className="bg-blue-100 border border-blue-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
+							<strong>Tip:</strong> Right click on any node to delete it.
+						</div>
+						<div className="bg-green-100 border border-green-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
+							<strong>Tip:</strong> Click on the path title for the node to rename it to something else
+						</div>
+					</>
+				)}
             </div>
         </div>
     );
