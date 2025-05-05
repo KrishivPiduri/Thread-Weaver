@@ -26,6 +26,15 @@ const Workspace: React.FC = () => {
     const [loading] = useState<boolean>(false);
     const [topic] = useTopic();
     const {setGraphKey}=useGraphData();
+    const [showSurveyPrompt, setShowSurveyPrompt] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setShowSurveyPrompt(true);
+        }, 10000); // 10 seconds
+        return () => clearTimeout(timer);
+    }, []);
+
     useEffect(() => {
         // @ts-ignore
         setGraphKey(id);
@@ -114,6 +123,30 @@ const Workspace: React.FC = () => {
                 <Graph
                     findPath={findPath}
                 />
+            )}
+            {showSurveyPrompt && (
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full text-center">
+                        <h2 className="text-xl font-semibold mb-2">Got 30 seconds?</h2>
+                        <p className="text-gray-600 mb-4">Help me improve this app by answering 3 quick questions.</p>
+                        <div className="flex justify-center space-x-4">
+                            <a
+                                href="https://your-survey-link.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                            >
+                                Sure
+                            </a>
+                            <button
+                                onClick={() => setShowSurveyPrompt(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 transition"
+                            >
+                                Maybe later
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
             {isOverlayVisible && <Overlay onClose={toggleOverlay}/>}
         </div>
