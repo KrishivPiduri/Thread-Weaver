@@ -58,7 +58,8 @@ const Graph: React.FC<GraphProps> = ({
     } | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isGrabbing, setIsGrabbing] = useState(false);
-	const changedLabels = useRef({});
+	const [changedLabels, setChangedLabels] = useState({})
+	const [formerLabels, setFormerLabels] = useState({})
 
     useEffect(() => {
         const normalizedNodes = nodesData.map((n) => ({ ...n, id: String(n.id) }));
@@ -105,8 +106,7 @@ const Graph: React.FC<GraphProps> = ({
 		console.log(normalizedNodes, nodesData)
         const styledNodes = normalizedNodes.map((node) => ({
             ...node,
-            label: node.label || node.id,
-			sublabel: node.sublabel || node.label || node.id,
+            label: formerLabels[node.id] ?? (node.label || node.id),
             color: {
                 background: node.id === '1' ? '#FFD700' : communityColors[communityMap[node.id]],
                 border: node.id === '1' ? '#FF8C00' : '#333333',
@@ -114,6 +114,7 @@ const Graph: React.FC<GraphProps> = ({
             size: node.id === '1' ? 28 : 16,
             font: { size: node.id === '1' ? 18 : 14, color: '#000', bold: node.id === '1' },
         }));
+
 
         nodesRef.current = new DataSet(styledNodes);
         edgesRef.current = new DataSet(normalizedEdges);
@@ -191,14 +192,15 @@ const Graph: React.FC<GraphProps> = ({
 
         const nodeIdToLabel: Record<string, string> = {};
 		const nodeIdToSublabel: Record<string, string> = {};
-        nodesData.forEach(({ id, label, sublabel }) => {
+        nodesData.forEach(({ id, label }) => {
             nodeIdToLabel[String(id)] = label || String(id);
-			nodeIdToSublabel[String(id)] = sublabel || nodeIdToLabel[String(id)]
+			nodeIdToSublabel[String(id)] = changedLabels[id] ?? nodeIdToLabel[String(id)]
         });
 
         const path = findPath(edgesRef.current!.get(), selectedNode);
         if (path?.length) {
-            const labelPath = path.map((id) => nodeIdToLabel[id] || id);
+            const labelPath = path.map((id) => nodeIdToSublabel[id] || id);
+			console.log(labelPath, nodeIdToSublabel, changedLabels);
             setIsSummaryLoading(true);
             fetch(
                 `https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(
@@ -285,10 +287,13 @@ const Graph: React.FC<GraphProps> = ({
 	const handleEdit = ()=>{
 		console.log("rab")
 		const label = editRef.current.innerText
+		setChangedLabels({...changedLabels, [selectedNode]: getNodeById(selectedNode).label})
 		console.log([label, Number(selectedNode)])
 		networkRef.current.updateClusteredNode(selectedNode, {"label": label})
-		console.log(nodesData, nodesData[Number(selectedNode)-1])
-		getNodeById(selectedNode).label = label
+		console.log(nodesData, nodesData[Number(selectedNode)-1], changedLabels)
+		setFormerLabels({...formerLabels, [selectedNode]: label})
+		console.log(changedLabels[selectedNode], summaryData.path.at(-1))
+		
 	}
 
     return (
@@ -318,12 +323,13 @@ const Graph: React.FC<GraphProps> = ({
                     <div className='bg-white'>
                         <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
                         <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
-                        <div className="text-xs text-gray-500 mb-4">
-                            <strong>Path:</strong> {summaryData.path.slice(0,-1).map(a=>a+' → ')} 
-							<div onBlur={handleEdit} className="" suppressContentEditableWarning={true} contentEditable role="textbox">
-								<span ref={editRef}>{summaryData.path.at(-1)}</span>
-							</div>
+                        <div className="text-xs text-gray-500">
+                            <strong>Path:</strong> {summaryData.path.join(' → ')} 	
                         </div>
+						<div className="text-xs text-gray-500 mb-4">
+							<strong>Label: </strong>
+							<span onBlur={handleEdit} className="d-inline" suppressContentEditableWarning={true} contentEditable role="textbox" ref={editRef}>{formerLabels[selectedNode] ?? summaryData.path.at(-1)}</span>
+						</div>
                         <button
                             onClick={handleExpand}
                             disabled={isLoading}
