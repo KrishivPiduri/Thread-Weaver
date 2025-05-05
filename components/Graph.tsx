@@ -349,9 +349,6 @@ const Graph: React.FC<GraphProps> = ({
 						<div className="bg-blue-100 border border-blue-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
 							<strong>Tip:</strong> Right click on any node to delete it.
 						</div>
-						<div className="bg-green-100 border border-green-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
-							<strong>Tip:</strong> Click on the path title for the node to rename it to something else
-						</div>
 					</>
 				)}
             </div>
