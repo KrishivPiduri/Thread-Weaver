@@ -225,7 +225,7 @@ const Graph: React.FC<GraphProps> = ({
         setIsLoading(true);
 
         try {
-            const topicPath = summaryData.path.slice(0,-1).map(a=>a+" > ") + getNodeById(selectedNode).sublabel;
+            const topicPath = summaryData.path.slice(0,-1).map(a=>a+" > ");
             const url = new URL("https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand");
             url.searchParams.set("topic_path", topicPath);
             url.searchParams.set("expand_node_id", selectedNode);
