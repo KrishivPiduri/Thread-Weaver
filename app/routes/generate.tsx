@@ -1,7 +1,7 @@
 import React, {type ChangeEvent, useEffect, useState} from 'react';
 import {useGraphData} from "../../context/GraphDataContext";
 import { useTopic } from '../../context/TopicContext';
-import {Link} from "react-router";
+import {Link} from "react-router-dom";
 import {addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, Timestamp, where} from "firebase/firestore";
 import {db} from "../../firebase";
 import {useAuth} from "../../context/AuthContext";
@@ -15,6 +15,8 @@ const HomePage: React.FC = () => {
     const { user } = useAuth();
     const [userGraphs, setUserGraphs] = useState<any[]>([]);
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+
     const handleDeleteGraph = async (graphId: string) => {
         try {
             await deleteDoc(doc(db, 'mindmaps', graphId));
@@ -38,10 +40,10 @@ const HomePage: React.FC = () => {
 
             setNodesData(data.nodesData);
             setEdgesData(data.edgesData);
-            setGraphKey(graphId); // NEW
+            setGraphKey(graphId);
             setTopic(data.topic || '');
 
-            navigate('/workspace');
+            navigate('/embed/' + graphId);
         } catch (err) {
             console.error('Error loading graph:', err);
         }
@@ -74,47 +76,46 @@ const HomePage: React.FC = () => {
         setTopic(e.target.value);
     };
 
-    const handleGenerate = () => {
-        const fetchData = async () => {
-            if (!topic) return;
+    const handleGenerate = async () => {
+        if (!topic) return;
+        setLoading(true);
 
-            try {
-                const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ root_topic: topic }),
-                });
+        try {
+            const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ root_topic: topic }),
+            });
 
-                if (!response.ok) throw new Error('Failed to generate mindmap');
+            if (!response.ok) throw new Error('Failed to generate mindmap');
 
-                const result = await response.json();
+            const result = await response.json();
 
-                if (!result.nodesData || !result.edgesData) {
-                    throw new Error('Invalid response: missing nodes or edges data');
-                }
-
-                setNodesData(result.nodesData);
-                setEdgesData(result.edgesData);
-
-                // Save to Firestore
-                // @ts-ignore
-                if (!user.uid) return;
-
-                const docRef = await addDoc(collection(db, 'mindmaps'), {
-                    topic,
-                    nodesData: result.nodesData,
-                    edgesData: result.edgesData,
-                    createdAt: Timestamp.now(),
-                    createdBy: user ? user.uid : 'anonymous',
-                });
-
-                setGraphKey(docRef.id); // <- Store the key for later use
-            } catch (err) {
-                console.error(err);
+            if (!result.nodesData || !result.edgesData) {
+                throw new Error('Invalid response: missing nodes or edges data');
             }
-        };
 
-        fetchData();
+            setNodesData(result.nodesData);
+            setEdgesData(result.edgesData);
+
+            // @ts-ignore
+            if (!user.uid) return;
+
+            const docRef = await addDoc(collection(db, 'mindmaps'), {
+                topic,
+                nodesData: result.nodesData,
+                edgesData: result.edgesData,
+                createdAt: Timestamp.now(),
+                createdBy: user.uid,
+            });
+
+            setGraphKey(docRef.id);
+            navigate(`/embed/${docRef.id}`);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -160,15 +161,14 @@ const HomePage: React.FC = () => {
                     placeholder="E.g. Feminism, Industrial Revolution, Existentialism"
                 />
 
-                <Link to="/workspace">
-                    <button
-                        type="button"
-                        className="w-full py-3 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600 transition duration-200 cursor-pointer"
-                        onClick={handleGenerate}
-                    >
-                        Generate Mind Map
-                    </button>
-                </Link>
+                <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={loading}
+                    className={`w-full py-3 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600 transition duration-200 cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                    {loading ? 'Generating...' : 'Generate Mind Map'}
+                </button>
             </div>
 
             {userGraphs.length > 0 && (

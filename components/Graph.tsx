@@ -5,10 +5,10 @@ import Graphology from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import { Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useGraphData } from '../context/GraphDataContext';
 import {doc, updateDoc} from "firebase/firestore";
 import {db} from "../firebase";
 import innerText from "react-innertext"
+import {useGraphData} from "../context/GraphDataContext";
 
 type Node = {
     id: string | number;
@@ -308,15 +308,14 @@ const Graph: React.FC<GraphProps> = ({
                 className="flex-grow md:basis-2/3 min-h-[300px] h-full md:h-auto overflow-hidden bg-white"
             />
 
-            <div className="md:flex-shrink md:basis-1/3 w-full bg-white p-4 border-l overflow-auto">
+            <div className="md:flex-shrink md:basis-1/3 w-full bg-white p-4 border-l flex flex-col relative">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-semibold">Summary</h2>
                     <Link to="/" className="text-blue-600 hover:underline text-sm flex items-center gap-1">
-                        <Home className="w-4 h-4" />
+                        <Home className="w-4 h-4"/>
                         Back
                     </Link>
                 </div>
-
                 {isSummaryLoading ? (
                     <div className="text-center text-gray-600">Loading summary...</div>
                 ) : summaryData ? (
@@ -349,6 +348,19 @@ const Graph: React.FC<GraphProps> = ({
 						<div className="bg-blue-100 border border-blue-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
 							<strong>Tip:</strong> Right click on any node to delete it.
 						</div>
+                    <div className="sticky bottom-0 left-0 right-0 bg-white p-3 border-t mt-auto">
+                    <button
+                        className="w-full py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition cursor-pointer"
+                        onClick={() => {
+                            const shareURL = `${window.location.origin}/embed/${graphKey}`;
+                            navigator.clipboard.writeText(shareURL)
+                                .then(() => alert('Link copied to clipboard!'))
+                                .catch((err) => console.error('Clipboard copy failed:', err));
+                        }}
+                    >
+                        Copy Shareable Link
+                    </button>
+                </div>
 					</>
 				)}
             </div>

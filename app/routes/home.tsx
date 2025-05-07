@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {addDoc, collection, Timestamp} from "firebase/firestore";
 import {db} from "../../firebase";
-import {Link} from "react-router";
 import {useTopic} from "../../context/TopicContext";
 import {useGraphData} from "../../context/GraphDataContext";
 import {useAuth} from "../../context/AuthContext";
@@ -24,6 +23,7 @@ export default function HeroStarfield() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [placeholder, setPlaceholder] = useState(rotatingTopics[0]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -35,46 +35,43 @@ export default function HeroStarfield() {
 
     return () => clearInterval(interval);
   }, []);
-  const handleGenerate = () => {
-    const fetchData = async () => {
-      if (!topic) return;
+  const handleGenerate = async () => {
+    if (!topic) return;
+    setLoading(true);
 
-      try {
-        const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ root_topic: topic }),
-        });
+    try {
+      const response = await fetch('https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ root_topic: topic }),
+      });
 
-        if (!response.ok) throw new Error('Failed to generate mindmap');
+      if (!response.ok) throw new Error('Failed to generate mindmap');
 
-        const result = await response.json();
+      const result = await response.json();
 
-        if (!result.nodesData || !result.edgesData) {
-          throw new Error('Invalid response: missing nodes or edges data');
-        }
-
-        setNodesData(result.nodesData);
-        setEdgesData(result.edgesData);
-        navigate('/workspace'); // Navigate to the workspace page
-        if (!user.uid) return;
-        // Save to Firestore
-        // @ts-ignore
-        const docRef = await addDoc(collection(db, 'mindmaps'), {
-          topic,
-          nodesData: result.nodesData,
-          edgesData: result.edgesData,
-          createdAt: Timestamp.now(),
-          createdBy: user ? user.uid : 'anonymous',
-        });
-
-        setGraphKey(docRef.id); // <- Store the key for later use
-      } catch (err) {
-        console.error(err);
+      if (!result.nodesData || !result.edgesData) {
+        throw new Error('Invalid response: missing nodes or edges data');
       }
-    };
 
-    fetchData();
+      setNodesData(result.nodesData);
+      setEdgesData(result.edgesData);
+
+      const docRef = await addDoc(collection(db, 'mindmaps'), {
+        topic,
+        nodesData: result.nodesData,
+        edgesData: result.edgesData,
+        createdAt: Timestamp.now(),
+        createdBy: user ? user.uid : "guest",
+      });
+
+      setGraphKey(docRef.id);
+      navigate(`/embed/${docRef.id}`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -94,12 +91,18 @@ export default function HeroStarfield() {
                 placeholder={placeholder}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleGenerate();
+                  }
+                }}
             />
-            <Link to="/workspace">
-            <button className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer" onClick={handleGenerate}>
-              Try it →
+            <button
+                className="bg-white text-black font-semibold px-6 py-3 rounded-md hover:bg-gray-200 shadow-lg cursor-pointer"
+                onClick={handleGenerate}
+            >
+              {loading ? "Generating map..." : "Try it →"}
             </button>
-            </Link>
           </div>
         </div>
       </section>
