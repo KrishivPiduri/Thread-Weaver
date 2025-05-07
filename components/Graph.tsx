@@ -7,7 +7,6 @@ import { Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {doc, updateDoc} from "firebase/firestore";
 import {db} from "../firebase";
-import innerText from "react-innertext"
 import {useGraphData} from "../context/GraphDataContext";
 
 type Node = {
@@ -47,7 +46,6 @@ const Graph: React.FC<GraphProps> = ({
     const networkRef = useRef<Network | null>(null);
     const nodesRef = useRef<DataSet<any> | null>(null);
     const edgesRef = useRef<DataSet<any> | null>(null);
-	const editRef = useRef(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -58,8 +56,6 @@ const Graph: React.FC<GraphProps> = ({
     } | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isGrabbing, setIsGrabbing] = useState(false);
-	const [changedLabels, setChangedLabels] = useState({})
-	const [formerLabels, setFormerLabels] = useState({})
 
     useEffect(() => {
         const normalizedNodes = nodesData.map((n) => ({ ...n, id: String(n.id) }));
@@ -103,10 +99,10 @@ const Graph: React.FC<GraphProps> = ({
                 communityColors[cid] = palette[idx % palette.length];
             }
         });
-		console.log(normalizedNodes, nodesData)
+
         const styledNodes = normalizedNodes.map((node) => ({
             ...node,
-            label: formerLabels[node.id] ?? (node.label || node.id),
+            label: node.label || node.id,
             color: {
                 background: node.id === '1' ? '#FFD700' : communityColors[communityMap[node.id]],
                 border: node.id === '1' ? '#FF8C00' : '#333333',
@@ -114,7 +110,6 @@ const Graph: React.FC<GraphProps> = ({
             size: node.id === '1' ? 28 : 16,
             font: { size: node.id === '1' ? 18 : 14, color: '#000', bold: node.id === '1' },
         }));
-
 
         nodesRef.current = new DataSet(styledNodes);
         edgesRef.current = new DataSet(normalizedEdges);
@@ -164,19 +159,6 @@ const Graph: React.FC<GraphProps> = ({
             });
         });
 
-		networkRef.current.on("oncontext", ({nodes, event, pointer}) => {
-			console.log("pain perdue")
-			event.preventDefault();
-			const priorSel = selectedNode
-			const net = networkRef.current
-			net.unselectAll()
-			console.log(pointer)
-			net.selectNodes([net.getNodeAt(pointer.DOM)])
-			net?.deleteSelected();
-			net.unselectAll()
-			net.selectNodes([selectedNode])
-		})
-
         return () => networkRef.current?.destroy();
     }, [nodesData, edgesData, findPath]);
 
@@ -191,16 +173,13 @@ const Graph: React.FC<GraphProps> = ({
         });
 
         const nodeIdToLabel: Record<string, string> = {};
-		const nodeIdToSublabel: Record<string, string> = {};
         nodesData.forEach(({ id, label }) => {
             nodeIdToLabel[String(id)] = label || String(id);
-			nodeIdToSublabel[String(id)] = changedLabels[id] ?? nodeIdToLabel[String(id)]
         });
 
         const path = findPath(edgesRef.current!.get(), selectedNode);
         if (path?.length) {
-            const labelPath = path.map((id) => nodeIdToSublabel[id] || id);
-			console.log(labelPath, nodeIdToSublabel, changedLabels);
+            const labelPath = path.map((id) => nodeIdToLabel[id] || id);
             setIsSummaryLoading(true);
             fetch(
                 `https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/summerize?path=${encodeURIComponent(
@@ -225,7 +204,7 @@ const Graph: React.FC<GraphProps> = ({
         setIsLoading(true);
 
         try {
-            const topicPath = summaryData.path.slice(0,-1).map(a=>a+" > ");
+            const topicPath = summaryData.path.join(" > ");
             const url = new URL("https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand");
             url.searchParams.set("topic_path", topicPath);
             url.searchParams.set("expand_node_id", selectedNode);
@@ -273,6 +252,7 @@ const Graph: React.FC<GraphProps> = ({
             } catch (err) {
                 console.error('Firestore update error:', err);
             }
+
         } catch (err) {
             console.error("Expand failed:", err);
         } finally {
@@ -280,21 +260,6 @@ const Graph: React.FC<GraphProps> = ({
         }
     };
 
-	const getNodeById = (id: string)=>{
-		return nodesData.find(a=>String(a.id) == id);
-	}
-
-	const handleEdit = ()=>{
-		console.log("rab")
-		const label = editRef.current.innerText
-		setChangedLabels({...changedLabels, [selectedNode]: getNodeById(selectedNode).label})
-		console.log([label, Number(selectedNode)])
-		networkRef.current.updateClusteredNode(selectedNode, {"label": label})
-		console.log(nodesData, nodesData[Number(selectedNode)-1], changedLabels)
-		setFormerLabels({...formerLabels, [selectedNode]: label})
-		console.log(changedLabels[selectedNode], summaryData.path.at(-1))
-		
-	}
 
     return (
         <div
@@ -316,39 +281,37 @@ const Graph: React.FC<GraphProps> = ({
                         Back
                     </Link>
                 </div>
-                {isSummaryLoading ? (
-                    <div className="text-center text-gray-600">Loading summary...</div>
-                ) : summaryData ? (
-                    <div className='bg-white'>
-                        <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
-                        <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
-                        <div className="text-xs text-gray-500">
-                            <strong>Path:</strong> {summaryData.path.join(' → ')} 	
-                        </div>
-						<div className="text-xs text-gray-500 mb-4">
-							<strong>Label: </strong>
-							<span onBlur={handleEdit} className="d-inline" suppressContentEditableWarning={true} contentEditable role="textbox" ref={editRef}>{formerLabels[selectedNode] ?? summaryData.path.at(-1)}</span>
-						</div>
-                        <button
-                            onClick={handleExpand}
-                            disabled={isLoading}
-                            className={`w-full py-2 rounded-lg text-white ${
-                                isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
-                        >
-                            {isLoading ? 'Expanding...' : 'Expand'}
-                        </button>
 
-                    </div>
-				) : (
-					<>
-						<div className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
-							<strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then hit <em>“Expand”</em> to grow your mind map with related concepts.
-						</div>
-						<div className="bg-blue-100 border border-blue-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
-							<strong>Tip:</strong> Right click on any node to delete it.
-						</div>
-                    <div className="sticky bottom-0 left-0 right-0 bg-white p-3 border-t mt-auto">
+                <div className="flex-grow overflow-auto mb-20">
+                    {isSummaryLoading ? (
+                        <div className="text-center text-gray-600">Loading summary...</div>
+                    ) : summaryData ? (
+                        <div className='bg-white'>
+                            <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
+                            <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
+                            <div className="text-xs text-gray-500 mb-4">
+                                <strong>Path:</strong> {summaryData.path.join(' → ')}
+                            </div>
+                            <button
+                                onClick={handleExpand}
+                                disabled={isLoading}
+                                className={`w-full py-2 rounded-lg text-white mb-4 ${
+                                    isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                }`}
+                            >
+                                {isLoading ? 'Expanding...' : 'Expand'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div
+                            className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse">
+                            <strong>Tip:</strong> Click on any circle (node) in the graph to explore it. Then
+                            hit <em>“Expand”</em> to grow your mind map with related concepts.
+                        </div>
+                    )}
+                </div>
+
+                <div className="sticky bottom-0 left-0 right-0 bg-white p-3 border-t mt-auto">
                     <button
                         className="w-full py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition cursor-pointer"
                         onClick={() => {
@@ -361,8 +324,6 @@ const Graph: React.FC<GraphProps> = ({
                         Copy Shareable Link
                     </button>
                 </div>
-					</>
-				)}
             </div>
         </div>
     );
