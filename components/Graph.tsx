@@ -48,6 +48,7 @@ const Graph: React.FC<GraphProps> = ({
     const nodesRef = useRef<DataSet<any> | null>(null);
     const edgesRef = useRef<DataSet<any> | null>(null);
 	const editRef = useRef(null);
+	const summaryRef = useRef(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -58,8 +59,12 @@ const Graph: React.FC<GraphProps> = ({
     } | null>(null);
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [isGrabbing, setIsGrabbing] = useState(false);
+<<<<<<< HEAD
 	const [changedLabels, setChangedLabels] = useState({})
 	const [formerLabels, setFormerLabels] = useState({})
+=======
+	const [changedSummaries, setSummaries] = useState({});
+>>>>>>> 23595b1 (Fixed deletion and insertion)
 
     useEffect(() => {
         const normalizedNodes = nodesData.map((n) => ({ ...n, id: String(n.id) }));
@@ -103,10 +108,14 @@ const Graph: React.FC<GraphProps> = ({
                 communityColors[cid] = palette[idx % palette.length];
             }
         });
-		console.log(normalizedNodes, nodesData)
+		// console.log(normalizedNodes, nodesData)
         const styledNodes = normalizedNodes.map((node) => ({
             ...node,
+<<<<<<< HEAD
             label: formerLabels[node.id] ?? (node.label || node.id),
+=======
+            label: node.label || node.id,
+>>>>>>> 23595b1 (Fixed deletion and insertion)
             color: {
                 background: node.id === '1' ? '#FFD700' : communityColors[communityMap[node.id]],
                 border: node.id === '1' ? '#FF8C00' : '#333333',
@@ -165,12 +174,12 @@ const Graph: React.FC<GraphProps> = ({
         });
 
 		networkRef.current.on("oncontext", ({nodes, event, pointer}) => {
-			console.log("pain perdue")
+			// console.log("pain perdue")
 			event.preventDefault();
 			const priorSel = selectedNode
 			const net = networkRef.current
 			net.unselectAll()
-			console.log(pointer)
+			// console.log(pointer)
 			net.selectNodes([net.getNodeAt(pointer.DOM)])
 			net?.deleteSelected();
 			net.unselectAll()
@@ -180,7 +189,7 @@ const Graph: React.FC<GraphProps> = ({
         return () => networkRef.current?.destroy();
     }, [nodesData, edgesData, findPath]);
 
-    useEffect(() => {
+	const updateNodes = () => {
         if (!selectedNode || !findPath) return;
 
         networkRef.current?.selectNodes([selectedNode]);
@@ -191,12 +200,16 @@ const Graph: React.FC<GraphProps> = ({
         });
 
         const nodeIdToLabel: Record<string, string> = {};
+<<<<<<< HEAD
 		const nodeIdToSublabel: Record<string, string> = {};
         nodesData.forEach(({ id, label }) => {
             nodeIdToLabel[String(id)] = label || String(id);
 			nodeIdToSublabel[String(id)] = changedLabels[id] ?? nodeIdToLabel[String(id)]
+=======
+        nodesData.forEach(({ id, label }) => {
+            nodeIdToLabel[String(id)] = label || String(id);
+>>>>>>> 23595b1 (Fixed deletion and insertion)
         });
-
         const path = findPath(edgesRef.current!.get(), selectedNode);
         if (path?.length) {
             const labelPath = path.map((id) => nodeIdToSublabel[id] || id);
@@ -218,14 +231,21 @@ const Graph: React.FC<GraphProps> = ({
                 .catch((err) => console.error(err))
                 .finally(() => setIsSummaryLoading(false));
         }
-    }, [selectedNode]);
+    }
+
+    useEffect(updateNodes, [selectedNode]);
 
     const handleExpand = async () => {
         if (!selectedNode || !summaryData) return;
         setIsLoading(true);
 
         try {
+<<<<<<< HEAD
             const topicPath = summaryData.path.slice(0,-1).map(a=>a+" > ");
+=======
+            const topicPath = summaryData.path.join(" > ");
+			// console.log(topicPath)
+>>>>>>> 23595b1 (Fixed deletion and insertion)
             const url = new URL("https://siy5vls6ul.execute-api.us-east-1.amazonaws.com/expand");
             url.searchParams.set("topic_path", topicPath);
             url.searchParams.set("expand_node_id", selectedNode);
@@ -263,7 +283,7 @@ const Graph: React.FC<GraphProps> = ({
                 const filteredNewEdges = newEdges.filter((e) => !existingEdgeSet.has(`${e.from}->${e.to}`));
                 return [...prev, ...filteredNewEdges];
             });
-            console.log('Graph key:', graphKey);
+            // console.log('Graph key:', graphKey);
             try {
                 const ref = doc(db, 'mindmaps', graphKey);
                 await updateDoc(ref, {
@@ -284,9 +304,12 @@ const Graph: React.FC<GraphProps> = ({
 		return nodesData.find(a=>String(a.id) == id);
 	}
 
+	const getIndexById = (id: string) => nodesData.findIndex(a=>String(a.id) == id)
+
 	const handleEdit = ()=>{
-		console.log("rab")
+		// console.log("rab")
 		const label = editRef.current.innerText
+<<<<<<< HEAD
 		setChangedLabels({...changedLabels, [selectedNode]: getNodeById(selectedNode).label})
 		console.log([label, Number(selectedNode)])
 		networkRef.current.updateClusteredNode(selectedNode, {"label": label})
@@ -294,6 +317,21 @@ const Graph: React.FC<GraphProps> = ({
 		setFormerLabels({...formerLabels, [selectedNode]: label})
 		console.log(changedLabels[selectedNode], summaryData.path.at(-1))
 		
+=======
+		// console.log([label, getIndexById(selectedNode)])
+		networkRef.current.updateClusteredNode(selectedNode, {"label": label})
+		// console.log(nodesData, getNodeById(selectedNode))
+		getNodeById(selectedNode).label = label
+		nodesData[getIndexById(selectedNode)].label = label
+		updateNodes();
+	}
+
+	const handleSummary = ()=>{
+		// console.log("ran");
+		const summary = summaryRef.current.innerText 
+		setSummaries({...changedSummaries, [selectedNode]: summary});
+		// console.log(changedSummaries[selectedNode])
+>>>>>>> 23595b1 (Fixed deletion and insertion)
 	}
 
     return (
@@ -321,9 +359,18 @@ const Graph: React.FC<GraphProps> = ({
                 ) : summaryData ? (
                     <div className='bg-white'>
                         <h3 className="font-medium mb-2 text-black">Node {summaryData.node}</h3>
+<<<<<<< HEAD
                         <p className="text-sm whitespace-pre-wrap mb-2 text-black">{summaryData.summary}</p>
                         <div className="text-xs text-gray-500">
                             <strong>Path:</strong> {summaryData.path.join(' → ')} 	
+=======
+                        <p className="text-sm whitespace-pre-wrap mb-2 text-black" onBlur={handleSummary} ref={summaryRef} suppressContentEditableWarning={true} contentEditable>{changedSummaries[selectedNode] ?? summaryData.summary}</p>
+                        <div className="text-xs text-gray-500 mb-4">
+                            <strong>Path:</strong> {summaryData.path.slice(0,-1).map(a=>a+' → ')} 
+							<div onBlur={handleEdit} className="" suppressContentEditableWarning={true} contentEditable role="textbox">
+								<span ref={editRef}>{summaryData.path.at(-1)}</span>
+							</div>
+>>>>>>> 23595b1 (Fixed deletion and insertion)
                         </div>
 						<div className="text-xs text-gray-500 mb-4">
 							<strong>Label: </strong>
@@ -348,6 +395,7 @@ const Graph: React.FC<GraphProps> = ({
 						<div className="bg-blue-100 border border-blue-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
 							<strong>Tip:</strong> Right click on any node to delete it.
 						</div>
+<<<<<<< HEAD
                     <div className="sticky bottom-0 left-0 right-0 bg-white p-3 border-t mt-auto">
                     <button
                         className="w-full py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition cursor-pointer"
@@ -361,6 +409,11 @@ const Graph: React.FC<GraphProps> = ({
                         Copy Shareable Link
                     </button>
                 </div>
+=======
+						<div className="bg-green-100 border border-green-300 text-yellow-800 rounded-md p-3 text-sm shadow-sm animate-pulse my-2">
+							<strong>Tip:</strong> Click on the path title for the node to rename it to something else. Click on the summary to change it as well.
+						</div>
+>>>>>>> 23595b1 (Fixed deletion and insertion)
 					</>
 				)}
             </div>
